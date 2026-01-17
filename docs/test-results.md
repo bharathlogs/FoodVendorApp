@@ -4,12 +4,21 @@
 
 | Property | Value |
 |----------|-------|
-| Device | [Emulator/Physical device model] |
-| Android Version | [Version] |
+| Device | sdk gphone64 x86 64 (emulator-5554) |
+| Android Version | Android 16 (API 36) |
 | App Version | 1.0.0 |
-| Flutter Version | [Version] |
+| Flutter Version | 3.38.7 (stable) |
+| Dart Version | 3.10.7 |
 | Firebase Project | [Project ID] |
 | Tester | [Name] |
+
+## Pre-Test Verification
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Unit Tests | PASS | 9/9 LocationQueueService tests passed |
+| Debug Build | PASS | APK built successfully |
+| App Installed | PASS | Installed on emulator-5554 |
 
 ---
 

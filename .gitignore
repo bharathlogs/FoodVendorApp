@@ -52,6 +52,7 @@ google-services.json
 .env
 *.env.*
 lib/config/firebase_options.dart
+lib/firebase_options.dart
 
 # APK and AAB files
 *.apk

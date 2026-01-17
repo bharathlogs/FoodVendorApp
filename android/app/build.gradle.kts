@@ -3,6 +3,8 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Add the Google services Gradle plugin
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -24,7 +26,7 @@ android {
         applicationId = "com.vendorapp.food_vendor_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23  // Android 6.0+, needed for location permissions
+        minSdk = 23  // Android 6.0+, required for location permissions in Phase 2
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName

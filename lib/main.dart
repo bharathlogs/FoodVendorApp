@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
+import 'services/location_foreground_service.dart';
 import 'models/user_model.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -11,9 +13,15 @@ import 'screens/customer/customer_home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize foreground task communication port
+  LocationForegroundService.initCommunicationPort();
+
   runApp(const MyApp());
 }
 
@@ -28,11 +36,14 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,
       ),
-      home: const AuthWrapper(),
+      // Wrap with WithForegroundTask to handle lifecycle
+      home: const WithForegroundTask(
+        child: AuthWrapper(),
+      ),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
-        '/vendor-home': (context) => const VendorHome(),
+        '/vendor-home': (context) => const WithForegroundTask(child: VendorHome()),
         '/customer-home': (context) => const CustomerHome(),
       },
     );

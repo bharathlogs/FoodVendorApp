@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Uses SharedPreferences for persistence across app restarts
 class LocationQueueService {
   static const String _queueKey = 'location_queue';
+  static const int _maxQueueSize = 100; // Prevent unbounded growth
 
   SharedPreferences? _prefs;
   List<Map<String, dynamic>> _queue = [];
@@ -42,6 +43,12 @@ class LocationQueueService {
       'longitude': longitude,
       'timestamp': timestamp.toIso8601String(),
     });
+
+    // Trim if too large (keep most recent)
+    if (_queue.length > _maxQueueSize) {
+      _queue.removeRange(0, _queue.length - _maxQueueSize);
+    }
+
     await _saveQueue();
   }
 

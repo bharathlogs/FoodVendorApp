@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../services/location_manager.dart';
 import '../../services/database_service.dart';
 import '../../models/vendor_profile.dart';
+import '../../utils/battery_optimization_helper.dart';
 
 class VendorHome extends StatefulWidget {
   const VendorHome({super.key});
@@ -67,6 +68,10 @@ class _VendorHomeState extends State<VendorHome> {
     if (_locationManager.isActive) {
       await _locationManager.stopBroadcasting();
     } else {
+      // Going online - check battery optimization first
+      await BatteryOptimizationHelper.requestBatteryOptimizationExemption(
+          context);
+      if (!mounted) return;
       await _locationManager.startBroadcasting(context);
     }
   }

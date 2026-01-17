@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.vendorapp.food_vendor_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,7 +26,7 @@ android {
         applicationId = "com.vendorapp.food_vendor_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion  // Android 6.0+, required for location permissions in Phase 2
+        minSdk = 23  // Android 6.0+, required for location permissions
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName

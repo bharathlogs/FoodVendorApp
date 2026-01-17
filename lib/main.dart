@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'services/auth_service.dart';
+import 'models/user_model.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'screens/vendor/vendor_home.dart';
+import 'screens/customer/customer_home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,46 +25,63 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Food Vendor App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Food Vendor App'),
+      home: const AuthWrapper(),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignupScreen(),
+        '/vendor-home': (context) => const VendorHome(),
+        '/customer-home': (context) => const CustomerHome(),
+      },
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle, size: 64, color: Colors.green),
-            SizedBox(height: 16),
-            Text(
-              'Firebase Connected!',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('Food Vendor App is ready'),
-          ],
-        ),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Still loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Not logged in
+        if (!snapshot.hasData) {
+          return const LoginScreen();
+        }
+
+        // Logged in - determine role
+        return FutureBuilder<UserModel?>(
+          future: AuthService().getUserData(snapshot.data!.uid),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final user = userSnapshot.data;
+            if (user == null) {
+              return const LoginScreen();
+            }
+
+            if (user.role == UserRole.vendor) {
+              return const VendorHome();
+            } else {
+              return const CustomerHome();
+            }
+          },
+        );
+      },
     );
   }
 }

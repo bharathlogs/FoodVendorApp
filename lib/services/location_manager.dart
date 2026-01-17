@@ -29,6 +29,12 @@ class LocationManager extends ChangeNotifier {
   LocationManagerState _state = LocationManagerState.idle;
   LocationManagerState get state => _state;
 
+  // Timeout detection
+  Timer? _timeoutCheckTimer;
+  static const Duration _timeoutDuration = Duration(minutes: 10);
+  static const Duration _checkInterval = Duration(minutes: 2);
+  static const Duration _warningThreshold = Duration(minutes: 7);
+
   String? _vendorId;
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
@@ -131,6 +137,9 @@ class LocationManager extends ChangeNotifier {
       // Non-fatal - continue anyway
     }
 
+    // Step 5: Start timeout monitoring
+    _startTimeoutMonitoring();
+
     _setState(LocationManagerState.active);
     return true;
   }
@@ -138,6 +147,9 @@ class LocationManager extends ChangeNotifier {
   /// Stop broadcasting location (called when vendor toggles "Closed")
   Future<void> stopBroadcasting() async {
     _setState(LocationManagerState.stopping);
+
+    // Stop timeout monitoring
+    _stopTimeoutMonitoring();
 
     // Stop foreground service
     await _foregroundService.stopService();
@@ -250,10 +262,43 @@ class LocationManager extends ChangeNotifier {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  /// Start monitoring for timeout (call after going online)
+  void _startTimeoutMonitoring() {
+    _timeoutCheckTimer?.cancel();
+    _timeoutCheckTimer = Timer.periodic(_checkInterval, (timer) {
+      _checkForTimeout();
+    });
+  }
+
+  /// Stop monitoring (call when going offline)
+  void _stopTimeoutMonitoring() {
+    _timeoutCheckTimer?.cancel();
+    _timeoutCheckTimer = null;
+  }
+
+  /// Check if we've timed out
+  void _checkForTimeout() {
+    if (_lastUpdateTime == null) return;
+
+    final timeSinceLastUpdate = DateTime.now().difference(_lastUpdateTime!);
+
+    if (timeSinceLastUpdate > _timeoutDuration) {
+      // We've timed out - go offline
+      debugPrint('Location timeout detected - going offline');
+      stopBroadcasting();
+    } else if (timeSinceLastUpdate > _warningThreshold) {
+      // Warning - update notification
+      _foregroundService.updateNotification(
+        'Warning: No location update in ${timeSinceLastUpdate.inMinutes} min',
+      );
+    }
+  }
+
   /// Clean up resources
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
+    _timeoutCheckTimer?.cancel();
     super.dispose();
   }
 

@@ -44,6 +44,27 @@ class DatabaseService {
             .toList());
   }
 
+  /// Get active vendors that have updated within the timeout window
+  /// This filters out vendors that appear "active" but haven't sent updates
+  Stream<List<VendorProfile>> getActiveVendorsWithFreshnessCheck() {
+    final cutoffTime = DateTime.now().subtract(const Duration(minutes: 10));
+
+    return _firestore
+        .collection('vendor_profiles')
+        .where('isActive', isEqualTo: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => VendorProfile.fromFirestore(doc))
+              .where((vendor) {
+                // Filter out vendors with stale locations
+                if (vendor.locationUpdatedAt == null) return false;
+                return vendor.locationUpdatedAt!.isAfter(cutoffTime);
+              })
+              .toList();
+        });
+  }
+
   // Get vendors filtered by cuisine (for Phase 4)
   Stream<List<VendorProfile>> getVendorsByCuisineStream(String cuisineTag) {
     return _firestore

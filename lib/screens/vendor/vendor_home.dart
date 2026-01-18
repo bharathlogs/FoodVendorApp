@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common/app_card.dart';
+import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
-import '../../services/location_manager.dart';
 import '../../services/database_service.dart';
+import '../../services/location_manager.dart';
 import '../../models/vendor_profile.dart';
-import '../../utils/battery_optimization_helper.dart';
 import 'menu_management_screen.dart';
 import 'cuisine_selection_screen.dart';
 
@@ -14,7 +16,7 @@ class VendorHome extends StatefulWidget {
   State<VendorHome> createState() => _VendorHomeState();
 }
 
-class _VendorHomeState extends State<VendorHome> {
+class _VendorHomeState extends State<VendorHome> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final DatabaseService _databaseService = DatabaseService();
   final LocationManager _locationManager = LocationManager();
@@ -22,129 +24,195 @@ class _VendorHomeState extends State<VendorHome> {
   VendorProfile? _vendorProfile;
   bool _isLoading = true;
 
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
     _initializeVendor();
+    _setupAnimations();
+  }
+
+  void _setupAnimations() {
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   Future<void> _initializeVendor() async {
     final uid = _authService.currentUser?.uid;
     if (uid == null) {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
+      Navigator.pushReplacementNamed(context, '/login');
       return;
     }
 
-    // Initialize location manager with vendor ID
     await _locationManager.initialize(uid);
-
-    // Load vendor profile
     final profile = await _databaseService.getVendorProfile(uid);
 
-    if (mounted) {
-      setState(() {
-        _vendorProfile = profile;
-        _isLoading = false;
-      });
-    }
+    setState(() {
+      _vendorProfile = profile;
+      _isLoading = false;
+    });
 
-    // Add listener for location updates
     _locationManager.addListener(_onLocationManagerUpdate);
   }
 
   void _onLocationManagerUpdate() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleStatus() async {
     if (_locationManager.state == LocationManagerState.starting ||
         _locationManager.state == LocationManagerState.stopping) {
-      // Already in transition, ignore
       return;
     }
 
     if (_locationManager.isActive) {
       await _locationManager.stopBroadcasting();
     } else {
-      // Going online - check battery optimization first
-      await BatteryOptimizationHelper.requestBatteryOptimizationExemption(
-          context);
-      if (!mounted) return;
       await _locationManager.startBroadcasting(context);
-    }
-  }
-
-  Future<void> _handleLogout() async {
-    final navigator = Navigator.of(context);
-    if (_locationManager.isActive) {
-      await _locationManager.stopBroadcasting();
-    }
-    await _authService.signOut();
-    if (mounted) {
-      navigator.pushReplacementNamed('/login');
     }
   }
 
   @override
   void dispose() {
     _locationManager.removeListener(_onLocationManagerUpdate);
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.storefront,
+                  size: 48,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_vendorProfile?.businessName ?? 'Vendor Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _handleLogout,
+      backgroundColor: AppColors.background,
+      body: CustomScrollView(
+        slivers: [
+          // Custom App Bar
+          _buildAppBar(),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Status Card with Toggle
+                  _buildStatusCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Quick Stats
+                  if (_locationManager.isActive) _buildLocationStats(),
+
+                  const SizedBox(height: 24),
+
+                  // Section Title
+                  Text(
+                    'Manage Your Business',
+                    style: AppTextStyles.h4,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Menu Card
+                  _buildMenuCard(),
+
+                  // Cuisine Card
+                  _buildCuisineCard(),
+
+                  const SizedBox(height: 24),
+
+                  // Error Message
+                  if (_locationManager.errorMessage != null)
+                    _buildErrorMessage(),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+    );
+  }
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 120,
+      floating: false,
+      pinned: true,
+      backgroundColor: AppColors.surface,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+        title: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status Card
-            _buildStatusCard(),
-
-            const SizedBox(height: 24),
-
-            // Toggle Button
-            _buildToggleButton(),
-
-            const SizedBox(height: 24),
-
-            // Location Info
-            if (_locationManager.isActive) _buildLocationInfo(),
-
-            // Error Message
-            if (_locationManager.errorMessage != null) _buildErrorMessage(),
-
-            const Spacer(),
-
-            // Menu Management
-            _buildMenuCard(),
-
-            const SizedBox(height: 12),
-
-            // Cuisine Types
-            _buildCuisineCard(),
+            Text(
+              'Welcome back!',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            Text(
+              _vendorProfile?.businessName ?? 'Vendor',
+              style: AppTextStyles.h4.copyWith(fontSize: 18),
+            ),
           ],
         ),
       ),
+      actions: [
+        IconActionButton(
+          icon: Icons.notifications_outlined,
+          onPressed: () {
+            // TODO: Notifications
+          },
+        ),
+        const SizedBox(width: 8),
+        IconActionButton(
+          icon: Icons.logout,
+          onPressed: () async {
+            if (_locationManager.isActive) {
+              await _locationManager.stopBroadcasting();
+            }
+            await _authService.signOut();
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/login');
+            }
+          },
+        ),
+        const SizedBox(width: 16),
+      ],
     );
   }
 
@@ -154,245 +222,235 @@ class _VendorHomeState extends State<VendorHome> {
         _locationManager.state == LocationManagerState.starting ||
             _locationManager.state == LocationManagerState.stopping;
 
-    return Card(
-      color: isActive ? Colors.green.shade50 : Colors.grey.shade100,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          children: [
-            Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isTransitioning
-                    ? Colors.orange
-                    : (isActive ? Colors.green : Colors.grey),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isTransitioning
-                        ? 'Updating...'
-                        : (isActive ? 'You are OPEN' : 'You are CLOSED'),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: isActive ? _pulseAnimation.value : 1.0,
+          child: GradientCard(
+            gradient: isActive
+                ? AppColors.successGradient
+                : const LinearGradient(
+                    colors: [Color(0xFF6B7280), Color(0xFF4B5563)],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isActive
-                        ? 'Customers can see your location'
-                        : 'Customers cannot find you',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToggleButton() {
-    final isActive = _locationManager.isActive;
-    final isTransitioning =
-        _locationManager.state == LocationManagerState.starting ||
-            _locationManager.state == LocationManagerState.stopping;
-
-    return SizedBox(
-      width: double.infinity,
-      height: 80,
-      child: ElevatedButton(
-        onPressed: isTransitioning ? null : _toggleStatus,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isActive ? Colors.red.shade400 : Colors.green,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: isTransitioning
-            ? const CircularProgressIndicator(color: Colors.white)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isActive ? Icons.stop : Icons.play_arrow,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isActive ? 'GO OFFLINE' : 'GO ONLINE',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _buildLocationInfo() {
-    final lat = _locationManager.lastLatitude;
-    final lng = _locationManager.lastLongitude;
-    final time = _locationManager.lastUpdateTime;
-
-    if (lat == null || lng == null) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 16),
-              Text('Getting your location...'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
+            padding: const EdgeInsets.all(20),
+            child: Column(
               children: [
-                Icon(Icons.location_on, color: Colors.green),
-                SizedBox(width: 8),
-                Text(
-                  'Your Location',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Row(
+                  children: [
+                    // Status Icon
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        isActive ? Icons.storefront : Icons.store_outlined,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Status Text
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isTransitioning
+                                ? 'Updating...'
+                                : (isActive ? 'You\'re Online!' : 'You\'re Offline'),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isActive
+                                ? 'Customers can find you now'
+                                : 'Go online to start serving',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Toggle Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: isTransitioning ? null : _toggleStatus,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: isActive ? AppColors.error : AppColors.success,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: isTransitioning
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: isActive ? AppColors.error : AppColors.success,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isActive ? Icons.power_settings_new : Icons.power_settings_new,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isActive ? 'Go Offline' : 'Go Online',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Latitude: ${lat.toStringAsFixed(6)}',
-              style: const TextStyle(fontFamily: 'monospace'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLocationStats() {
+    final lat = _locationManager.lastLatitude;
+    final lng = _locationManager.lastLongitude;
+    final time = _locationManager.lastUpdateTime;
+
+    return AppCard(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            Text(
-              'Longitude: ${lng.toStringAsFixed(6)}',
-              style: const TextStyle(fontFamily: 'monospace'),
+            child: Icon(
+              Icons.location_on,
+              color: AppColors.info,
             ),
-            if (time != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Last updated: ${_formatDateTime(time)}',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Location',
+                  style: AppTextStyles.labelLarge,
                 ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorMessage() {
-    return Card(
-      color: Colors.red.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _locationManager.errorMessage!,
-                style: const TextStyle(color: Colors.red),
-              ),
+                const SizedBox(height: 4),
+                if (lat != null && lng != null)
+                  Text(
+                    '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  )
+                else
+                  Text(
+                    'Fetching location...',
+                    style: AppTextStyles.bodySmall,
+                  ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _navigateToMenu() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MenuManagementScreen(),
+          ),
+          if (time != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Updated',
+                  style: AppTextStyles.bodySmall,
+                ),
+                Text(
+                  _formatTime(time),
+                  style: AppTextStyles.labelMedium.copyWith(
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildMenuCard() {
-    return Card(
-      child: InkWell(
-        onTap: _navigateToMenu,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.restaurant_menu,
-                  color: Colors.orange.shade700,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Menu',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Add and manage your food items',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey.shade400,
-              ),
-            ],
+    return AppCard(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const MenuManagementScreen(),
           ),
-        ),
+        );
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.restaurant_menu,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manage Menu',
+                  style: AppTextStyles.h4.copyWith(fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Add, edit, or remove items',
+                  style: AppTextStyles.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: AppColors.textHint,
+          ),
+        ],
       ),
     );
   }
@@ -400,89 +458,99 @@ class _VendorHomeState extends State<VendorHome> {
   Widget _buildCuisineCard() {
     final cuisines = _vendorProfile?.cuisineTags ?? [];
 
-    return Card(
-      child: InkWell(
-        onTap: () async {
-          final result = await Navigator.push<List<String>>(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CuisineSelectionScreen(
-                initialSelection: cuisines,
-              ),
+    return AppCard(
+      onTap: () async {
+        final result = await Navigator.push<List<String>>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CuisineSelectionScreen(
+              initialSelection: cuisines,
             ),
-          );
-
-          if (result != null) {
-            // Reload profile to show updated cuisines
-            final profile = await _databaseService.getVendorProfile(
-              _authService.currentUser!.uid,
-            );
-            if (mounted) {
-              setState(() {
-                _vendorProfile = profile;
-              });
-            }
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.category,
-                  color: Colors.purple.shade700,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Cuisine Types',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      cuisines.isEmpty
-                          ? 'Select your cuisine types'
-                          : cuisines.join(', '),
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey.shade400,
-              ),
-            ],
           ),
-        ),
+        );
+
+        if (result != null) {
+          final profile = await _databaseService.getVendorProfile(
+            _authService.currentUser!.uid,
+          );
+          if (mounted) {
+            setState(() {
+              _vendorProfile = profile;
+            });
+          }
+        }
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.purple.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.category,
+              color: Colors.purple.shade400,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cuisine Types',
+                  style: AppTextStyles.h4.copyWith(fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  cuisines.isEmpty
+                      ? 'Select your cuisine types'
+                      : cuisines.take(3).join(', ') +
+                          (cuisines.length > 3 ? ' +${cuisines.length - 3}' : ''),
+                  style: AppTextStyles.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: AppColors.textHint,
+          ),
+        ],
       ),
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}:'
-        '${dt.second.toString().padLeft(2, '0')}';
+  Widget _buildErrorMessage() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: AppColors.error),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _locationManager.errorMessage!,
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }

@@ -26,7 +26,10 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Tests | 10 |
+| Total Tests | 24 |
+| E2E Tests | 10 |
+| Network Tests | 4 |
+| Edge Case Tests | 10 |
 | Passed | |
 | Failed | |
 | Blocked | |
@@ -34,6 +37,8 @@
 ---
 
 ## Detailed Results
+
+### End-to-End Tests
 
 | Test | Status | Notes |
 |------|--------|-------|
@@ -47,6 +52,30 @@
 | Test 8: Customer Views Vendor | [ ] Pass / [ ] Fail | |
 | Test 9: Cuisine Filtering | [ ] Pass / [ ] Fail | |
 | Test 10: Logout Flow | [ ] Pass / [ ] Fail | |
+
+### Network Tests
+
+| Test | Status | Notes |
+|------|--------|-------|
+| N1: Vendor Online - No Internet | [ ] Pass / [ ] Fail | |
+| N2: Vendor Loses Internet While Online | [ ] Pass / [ ] Fail | |
+| N3: Customer Map - No Internet | [ ] Pass / [ ] Fail | |
+| N4: Slow Network (2G Simulation) | [ ] Pass / [ ] Fail | |
+
+### Edge Case Tests
+
+| Test | Status | Notes |
+|------|--------|-------|
+| E1: Vendor Timeout (10 min) | [ ] Pass / [ ] Fail | |
+| E2: Location Permission Revoked | [ ] Pass / [ ] Fail | |
+| E3: Very Far Distance (~2000 km) | [ ] Pass / [ ] Fail | |
+| E4: Same Location (Zero Distance) | [ ] Pass / [ ] Fail | |
+| E5: Empty Menu | [ ] Pass / [ ] Fail | |
+| E6: No Active Vendors | [ ] Pass / [ ] Fail | |
+| E7: 50 Menu Items Limit | [ ] Pass / [ ] Fail | |
+| E8: App Killed While Online | [ ] Pass / [ ] Fail | |
+| E9: Multiple Filter Selection | [ ] Pass / [ ] Fail | |
+| E10: Special Characters in Names | [ ] Pass / [ ] Fail | |
 
 ---
 

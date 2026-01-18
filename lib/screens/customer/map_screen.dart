@@ -36,6 +36,12 @@ class _MapScreenState extends State<MapScreen> {
     _initCustomerLocation();
   }
 
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
   Future<void> _initCustomerLocation() async {
     if (!mounted) return;
     setState(() {

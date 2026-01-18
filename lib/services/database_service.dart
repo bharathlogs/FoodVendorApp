@@ -33,11 +33,15 @@ class DatabaseService {
     await _firestore.collection('vendor_profiles').doc(vendorId).update(data);
   }
 
+  // Maximum vendors to load on map (for performance)
+  static const int maxVendorsOnMap = 50;
+
   // Get all active vendors (for Phase 4 map)
   Stream<List<VendorProfile>> getActiveVendorsStream() {
     return _firestore
         .collection('vendor_profiles')
         .where('isActive', isEqualTo: true)
+        .limit(maxVendorsOnMap)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => VendorProfile.fromFirestore(doc))
@@ -52,6 +56,7 @@ class DatabaseService {
     return _firestore
         .collection('vendor_profiles')
         .where('isActive', isEqualTo: true)
+        .limit(maxVendorsOnMap)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
@@ -71,6 +76,7 @@ class DatabaseService {
         .collection('vendor_profiles')
         .where('isActive', isEqualTo: true)
         .where('cuisineTags', arrayContains: cuisineTag)
+        .limit(maxVendorsOnMap)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => VendorProfile.fromFirestore(doc))
@@ -110,8 +116,27 @@ class DatabaseService {
             snapshot.docs.map((doc) => MenuItem.fromFirestore(doc)).toList());
   }
 
-  // Add menu item (for Phase 3)
+  // Get menu item count for a vendor
+  Future<int> getMenuItemCount(String vendorId) async {
+    final snapshot = await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('menu_items')
+        .count()
+        .get();
+    return snapshot.count ?? 0;
+  }
+
+  // Add menu item (for Phase 3) with 50 item limit
+  static const int maxMenuItems = 50;
+
   Future<String> addMenuItem(String vendorId, MenuItem item) async {
+    // Check item limit before adding
+    final currentCount = await getMenuItemCount(vendorId);
+    if (currentCount >= maxMenuItems) {
+      throw Exception('Menu item limit reached ($maxMenuItems items maximum)');
+    }
+
     final docRef = await _firestore
         .collection('vendor_profiles')
         .doc(vendorId)

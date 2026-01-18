@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 import 'services/location_foreground_service.dart';
 import 'models/user_model.dart';
@@ -31,11 +32,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Food Vendor App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
-        useMaterial3: true,
-      ),
+      title: 'Food Finder',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
       // Wrap with WithForegroundTask to handle lifecycle
       home: const WithForegroundTask(
         child: AuthWrapper(),

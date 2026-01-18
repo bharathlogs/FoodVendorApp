@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import '../../models/vendor_profile.dart';
 import '../../utils/distance_formatter.dart';
+import '../../widgets/common/status_badge.dart';
+import '../../widgets/common/app_button.dart';
 
 class VendorBottomSheet extends StatelessWidget {
   final VendorProfile vendor;
@@ -17,203 +20,248 @@ class VendorBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
 
-          // Vendor header
-          Row(
-            children: [
-              // Avatar
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: Colors.orange.shade100,
-                backgroundImage: vendor.profileImageUrl != null
-                    ? NetworkImage(vendor.profileImageUrl!)
-                    : null,
-                child: vendor.profileImageUrl == null
-                    ? Icon(
-                        Icons.store,
-                        color: Colors.orange.shade700,
-                        size: 32,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 16),
-
-              // Business info
-              Expanded(
-                child: Column(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
+                    // Vendor icon with gradient
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.storefront,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Name and status
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
                             vendor.businessName,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: AppTextStyles.h3,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        // Online badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                          const SizedBox(height: 8),
+                          StatusBadge(
+                            status: vendor.isActive
+                                ? StatusType.open
+                                : StatusType.closed,
+                            large: true,
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Distance & Time card
+                if (distanceKm != null)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.info.withValues(alpha: 0.1),
+                          AppColors.info.withValues(alpha: 0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.info.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Distance
+                        Expanded(
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.green,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.info.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.location_on,
+                                  color: AppColors.info,
+                                  size: 24,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Open',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green.shade700,
-                                  fontWeight: FontWeight.w500,
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    DistanceFormatter.format(distanceKm),
+                                    style: AppTextStyles.h4.copyWith(
+                                      color: AppColors.info,
+                                    ),
+                                  ),
+                                  Text(
+                                    'away',
+                                    style: AppTextStyles.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Divider
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: AppColors.info.withValues(alpha: 0.2),
+                        ),
+
+                        // Walking time
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.info.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                child: Icon(
+                                  Icons.directions_walk,
+                                  color: AppColors.info,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _getWalkingTime(),
+                                    style: AppTextStyles.h4.copyWith(
+                                      color: AppColors.info,
+                                    ),
+                                  ),
+                                  Text(
+                                    'walk',
+                                    style: AppTextStyles.bodySmall,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
+                  ),
 
-                    // Distance
-                    if (distanceKm != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.directions_walk,
-                            size: 16,
-                            color: Colors.grey.shade600,
+                // Cuisine tags
+                if (vendor.cuisineTags.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: vendor.cuisineTags.map((tag) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primary,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${DistanceFormatter.format(distanceKm!)} · ${DistanceFormatter.walkingTime(distanceKm!)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Description
-          if (vendor.description.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              vendor.description,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-
-          // Cuisine tags
-          if (vendor.cuisineTags.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: vendor.cuisineTags.map((tag) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.orange.shade800,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-
-          const SizedBox(height: 24),
-
-          // View menu button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onViewMenu,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.restaurant_menu),
-                  SizedBox(width: 8),
-                  Text(
-                    'View Menu',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ],
-              ),
+
+                // Description
+                if (vendor.description.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    vendor.description,
+                    style: AppTextStyles.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+
+                // View Menu Button
+                PrimaryButton(
+                  text: 'View Menu',
+                  icon: Icons.restaurant_menu,
+                  onPressed: onViewMenu,
+                ),
+
+                // Safe area
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+              ],
             ),
           ),
-
-          // Safe area padding
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
     );
+  }
+
+  String _getWalkingTime() {
+    if (distanceKm == null) return '-';
+    final minutes = (distanceKm! / 5 * 60).round();
+    if (minutes < 1) return '<1 min';
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    return '${hours}h ${minutes % 60}m';
   }
 }

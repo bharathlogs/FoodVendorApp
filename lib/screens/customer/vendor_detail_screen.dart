@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../models/menu_item.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common/app_card.dart';
+import '../../widgets/common/status_badge.dart';
+import '../../widgets/common/shimmer_loading.dart';
 import '../../models/vendor_profile.dart';
+import '../../models/menu_item.dart';
 import '../../services/database_service.dart';
-import '../../services/customer_location_service.dart';
+import '../../utils/distance_formatter.dart';
 
 class VendorDetailScreen extends StatelessWidget {
   final VendorProfile vendor;
@@ -17,126 +21,77 @@ class VendorDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final databaseService = DatabaseService();
-    final locationService = CustomerLocationService();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(vendor.businessName),
-      ),
-      body: Column(
-        children: [
-          // Vendor header with distance
-          _buildVendorHeader(locationService),
-
-          // Menu items list
-          Expanded(
-            child: StreamBuilder<List<MenuItem>>(
-              stream: databaseService.getMenuItemsStream(vendor.vendorId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-
-                final allItems = snapshot.data ?? [];
-                // Only show available items to customers
-                final items = allItems.where((item) => item.isAvailable).toList();
-
-                if (items.isEmpty) {
-                  return _buildEmptyMenu();
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return _buildMenuItemCard(item);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomBar(context, locationService),
-    );
-  }
-
-  Widget _buildVendorHeader(CustomerLocationService locationService) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        border: Border(
-          bottom: BorderSide(color: Colors.orange.shade100),
-        ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.orange.shade100,
-            backgroundImage: vendor.profileImageUrl != null
-                ? NetworkImage(vendor.profileImageUrl!)
-                : null,
-            child: vendor.profileImageUrl == null
-                ? Icon(
-                    Icons.store,
-                    color: Colors.orange.shade700,
-                    size: 32,
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      backgroundColor: AppColors.background,
+      body: CustomScrollView(
+        slivers: [
+          // Hero Header
+          SliverAppBar(
+            expandedHeight: 200,
+            pinned: true,
+            backgroundColor: AppColors.primary,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                ),
+                child: Stack(
                   children: [
-                    Expanded(
-                      child: Text(
-                        vendor.businessName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    // Pattern overlay
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _PatternPainter(),
                       ),
                     ),
-                    // Online badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+
+                    // Content
+                    Positioned(
+                      left: 20,
+                      right: 20,
+                      bottom: 20,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.green,
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 16,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.storefront,
+                              size: 40,
+                              color: AppColors.primary,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Open',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green.shade700,
-                              fontWeight: FontWeight.w500,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  vendor.businessName,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                StatusBadge(
+                                  status: vendor.isActive
+                                      ? StatusType.open
+                                      : StatusType.closed,
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -144,91 +99,254 @@ class VendorDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (vendor.description.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    vendor.description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    // Distance badge
-                    if (distanceKm != null) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.directions_walk,
-                              size: 14,
-                              color: Colors.blue.shade700,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              locationService.formatDistance(distanceKm!),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-
-                    // Cuisine tags
-                    if (vendor.cuisineTags.isNotEmpty)
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: vendor.cuisineTags.map((tag) {
-                              return Container(
-                                margin: const EdgeInsets.only(right: 6),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.orange.shade200),
-                                ),
-                                child: Text(
-                                  tag,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                  ],
+              ),
+            ),
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
+                child: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
+              onPressed: () => Navigator.pop(context),
             ),
           ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Info Cards Row
+                  Row(
+                    children: [
+                      // Distance Card
+                      if (distanceKm != null)
+                        Expanded(
+                          child: _InfoCard(
+                            icon: Icons.location_on,
+                            iconColor: AppColors.info,
+                            title: DistanceFormatter.format(distanceKm),
+                            subtitle: 'Distance',
+                          ),
+                        ),
+                      if (distanceKm != null) const SizedBox(width: 12),
+
+                      // Walking Time Card
+                      if (distanceKm != null)
+                        Expanded(
+                          child: _InfoCard(
+                            icon: Icons.directions_walk,
+                            iconColor: AppColors.success,
+                            title: DistanceFormatter.walkingTime(distanceKm),
+                            subtitle: 'Walking',
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // Cuisine Tags
+                  if (vendor.cuisineTags.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: vendor.cuisineTags.map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            tag,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+
+                  // Description
+                  if (vendor.description.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      vendor.description,
+                      style: AppTextStyles.bodyMedium,
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Menu Section
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.restaurant_menu,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Menu',
+                        style: AppTextStyles.h3,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+
+          // Menu Items
+          StreamBuilder<List<MenuItem>>(
+            stream: databaseService.getMenuItemsStream(vendor.vendorId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => const ShimmerMenuItem(),
+                      childCount: 4,
+                    ),
+                  ),
+                );
+              }
+
+              final items = snapshot.data ?? [];
+              final availableItems =
+                  items.where((item) => item.isAvailable).toList();
+
+              if (availableItems.isEmpty) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyMenu(),
+                );
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = availableItems[index];
+                      return _MenuItemCard(item: item);
+                    },
+                    childCount: availableItems.length,
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Bottom Padding
+          const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
         ],
+      ),
+
+      // Bottom Bar
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          12 + MediaQuery.of(context).padding.bottom,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ready to order?',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                  Text(
+                    'Visit the stall directly',
+                    style: AppTextStyles.labelLarge,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Row(
+                          children: [
+                            Icon(Icons.directions_walk, color: Colors.white),
+                            SizedBox(width: 12),
+                            Text('Head to the stall to place your order!'),
+                          ],
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(Icons.directions_walk, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Visit Stall',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -238,160 +356,166 @@ class VendorDetailScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.restaurant_menu,
-            size: 64,
-            color: Colors.grey.shade400,
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.restaurant_menu,
+              size: 48,
+              color: AppColors.primary,
+            ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No items available',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Text(
+            'Menu not available',
+            style: AppTextStyles.h4,
           ),
           const SizedBox(height: 8),
           Text(
-            'This vendor hasn\'t added\nany menu items yet',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            'Check back later or visit the stall',
+            style: AppTextStyles.bodyMedium,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildMenuItemCard(MenuItem item) {
-    return Card(
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+
+  const _InfoCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AppTextStyles.labelLarge),
+              Text(subtitle, style: AppTextStyles.bodySmall),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuItemCard extends StatelessWidget {
+  final MenuItem item;
+
+  const _MenuItemCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Item image if available
-            if (item.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  item.imageUrl!,
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.fastfood,
-                        color: Colors.grey.shade400,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            if (item.imageUrl != null) const SizedBox(width: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Food Icon
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.fastfood,
+              color: AppColors.primary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
 
-            // Item details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          // Item Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: AppTextStyles.labelLarge,
+                ),
+                if (item.description != null) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    item.name,
-                    style: const TextStyle(
-                      fontSize: 16,
+                    item.description!,
+                    style: AppTextStyles.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '₹${item.price.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.success,
                     ),
                   ),
-                  if (item.description != null &&
-                      item.description!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      item.description!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Price
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Rs ${item.price.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBar(BuildContext context, CustomerLocationService locationService) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
           ),
         ],
       ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Icon(Icons.directions_walk, color: Colors.orange.shade700),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Walk to the stall to place your order',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (distanceKm != null)
-                    Text(
-                      locationService.formatDistance(distanceKm!),
-                      style: TextStyle(
-                        color: Colors.orange.shade700,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
+}
+
+class _PatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.1)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    for (var i = 0; i < 10; i++) {
+      canvas.drawCircle(
+        Offset(size.width * 0.8, size.height * 0.3),
+        50.0 + i * 20,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

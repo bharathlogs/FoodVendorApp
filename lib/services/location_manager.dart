@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -126,14 +127,14 @@ class LocationManager extends ChangeNotifier {
       );
     } catch (e) {
       // Non-fatal - service will get location eventually
-      debugPrint('Initial location fetch failed: $e');
+      if (kDebugMode) debugPrint('Initial location fetch failed: $e');
     }
 
     // Step 4: Set vendor as active in Firebase
     try {
       await _databaseService.setVendorActiveStatus(_vendorId!, true);
     } catch (e) {
-      debugPrint('Failed to set vendor active status: $e');
+      if (kDebugMode) debugPrint('Failed to set vendor active status: $e');
       // Non-fatal - continue anyway
     }
 
@@ -159,7 +160,7 @@ class LocationManager extends ChangeNotifier {
       try {
         await _databaseService.setVendorActiveStatus(_vendorId!, false);
       } catch (e) {
-        debugPrint('Failed to set vendor inactive status: $e');
+        if (kDebugMode) debugPrint('Failed to set vendor inactive status: $e');
       }
     }
 
@@ -201,7 +202,7 @@ class LocationManager extends ChangeNotifier {
         );
       } catch (e) {
         // If Firebase update fails, queue it
-        debugPrint('Firebase update failed, queueing: $e');
+        if (kDebugMode) debugPrint('Firebase update failed, queueing: $e');
         await _queueService.enqueue(latitude, longitude, timestamp);
       }
     } else {
@@ -237,7 +238,7 @@ class LocationManager extends ChangeNotifier {
         'Back online - location synced',
       );
     } catch (e) {
-      debugPrint('Queue flush failed: $e');
+      if (kDebugMode) debugPrint('Queue flush failed: $e');
     }
   }
 
@@ -284,7 +285,7 @@ class LocationManager extends ChangeNotifier {
 
     if (timeSinceLastUpdate > _timeoutDuration) {
       // We've timed out - go offline
-      debugPrint('Location timeout detected - going offline');
+      if (kDebugMode) debugPrint('Location timeout detected - going offline');
       stopBroadcasting();
     } else if (timeSinceLastUpdate > _warningThreshold) {
       // Warning - update notification

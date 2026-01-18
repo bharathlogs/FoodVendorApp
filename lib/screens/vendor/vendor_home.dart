@@ -4,6 +4,8 @@ import '../../services/location_manager.dart';
 import '../../services/database_service.dart';
 import '../../models/vendor_profile.dart';
 import '../../utils/battery_optimization_helper.dart';
+import 'menu_management_screen.dart';
+import 'cuisine_selection_screen.dart';
 
 class VendorHome extends StatefulWidget {
   const VendorHome({super.key});
@@ -133,8 +135,13 @@ class _VendorHomeState extends State<VendorHome> {
 
             const Spacer(),
 
-            // Placeholder for Phase 3 features
-            _buildPhase3Placeholder(),
+            // Menu Management
+            _buildMenuCard(),
+
+            const SizedBox(height: 12),
+
+            // Cuisine Types
+            _buildCuisineCard(),
           ],
         ),
       ),
@@ -325,24 +332,149 @@ class _VendorHomeState extends State<VendorHome> {
     );
   }
 
-  Widget _buildPhase3Placeholder() {
+  void _navigateToMenu() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MenuManagementScreen(),
+      ),
+    );
+  }
+
+  Widget _buildMenuCard() {
     return Card(
-      color: Colors.blue.shade50,
-      child: const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Icon(Icons.restaurant_menu, size: 32, color: Colors.blue),
-            SizedBox(height: 8),
-            Text(
-              'Menu & Orders',
-              style: TextStyle(fontWeight: FontWeight.bold),
+      child: InkWell(
+        onTap: _navigateToMenu,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.restaurant_menu,
+                  color: Colors.orange.shade700,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Menu',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Add and manage your food items',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCuisineCard() {
+    final cuisines = _vendorProfile?.cuisineTags ?? [];
+
+    return Card(
+      child: InkWell(
+        onTap: () async {
+          final result = await Navigator.push<List<String>>(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CuisineSelectionScreen(
+                initialSelection: cuisines,
+              ),
             ),
-            Text(
-              'Coming in Phase 3',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
+          );
+
+          if (result != null) {
+            // Reload profile to show updated cuisines
+            final profile = await _databaseService.getVendorProfile(
+              _authService.currentUser!.uid,
+            );
+            if (mounted) {
+              setState(() {
+                _vendorProfile = profile;
+              });
+            }
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.category,
+                  color: Colors.purple.shade700,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cuisine Types',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      cuisines.isEmpty
+                          ? 'Select your cuisine types'
+                          : cuisines.join(', '),
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
         ),
       ),
     );

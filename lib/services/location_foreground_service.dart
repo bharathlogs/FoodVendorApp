@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -19,7 +20,7 @@ class LocationTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    print('LocationTaskHandler started');
+    if (kDebugMode) print('LocationTaskHandler started');
 
     // Start listening to location updates
     _positionSubscription = Geolocator.getPositionStream(
@@ -73,7 +74,7 @@ class LocationTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp) async {
-    print('LocationTaskHandler destroyed');
+    if (kDebugMode) print('LocationTaskHandler destroyed');
     _heartbeatTimer?.cancel();
     await _positionSubscription?.cancel();
   }

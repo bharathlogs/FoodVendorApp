@@ -1,0 +1,10 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#FF9800"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+
+  # Adaptive icon settings for Android 8.0+
+  # Uses app_icon.png for both regular and adaptive icon foreground
+  # Background color is the orange theme color (#FF9800)

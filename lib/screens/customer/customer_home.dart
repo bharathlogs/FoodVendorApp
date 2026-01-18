@@ -1,23 +1,32 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import 'vendor_list_screen.dart';
+import 'map_screen.dart';
 
-class CustomerHome extends StatelessWidget {
+class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
 
   @override
+  State<CustomerHome> createState() => _CustomerHomeState();
+}
+
+class _CustomerHomeState extends State<CustomerHome> {
+  int _currentIndex = 0;
+  final AuthService _authService = AuthService();
+
+  @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    final isLoggedIn = authService.currentUser != null;
+    final isLoggedIn = _authService.currentUser != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find Food Vendors'),
+        title: Text(_currentIndex == 0 ? 'Find Food Vendors' : 'Nearby Vendors'),
         actions: [
           if (isLoggedIn)
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () async {
-                await authService.signOut();
+                await _authService.signOut();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(context, '/login');
                 }
@@ -32,20 +41,32 @@ class CustomerHome extends StatelessWidget {
             ),
         ],
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.map, size: 64, color: Colors.green),
-            SizedBox(height: 16),
-            Text(
-              'Map View',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('Phase 4 map will appear here'),
-          ],
-        ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [
+          VendorListScreen(),
+          MapScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.list),
+            selectedIcon: Icon(Icons.list_alt),
+            label: 'List',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: 'Map',
+          ),
+        ],
       ),
     );
   }

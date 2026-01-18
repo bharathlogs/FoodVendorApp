@@ -47,6 +47,7 @@ app.*.map.json
 # CRITICAL: Never commit credentials or API keys
 *.jks
 *.keystore
+android/key.properties
 google-services.json
 **/secrets/
 .env

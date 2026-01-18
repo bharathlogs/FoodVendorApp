@@ -15,8 +15,7 @@
     <!-- Network state for offline detection -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Receive boot to restart service after reboot (optional but recommended) -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Boot permission removed - BootReceiver causes issues on Android 16 -->
 
     <!-- Camera and Gallery for image picker -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -57,14 +56,8 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
-        <!-- Boot receiver to restart service -->
-        <receiver
-            android:name="com.pravera.flutter_foreground_task.receiver.BootReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
+        <!-- Boot receiver removed - causes ClassNotFoundException on Android 16 -->
+        <!-- Vendor must manually reopen app after device restart -->
 
         <!-- Required for image_picker on Android -->
         <provider

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/status_badge.dart';
@@ -65,11 +66,27 @@ class VendorDetailScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            child: Icon(
-                              Icons.storefront,
-                              size: 40,
-                              color: AppColors.primary,
-                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: vendor.profileImageUrl != null
+                                ? CachedNetworkImage(
+                                    imageUrl: vendor.profileImageUrl!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Icon(
+                                      Icons.storefront,
+                                      size: 40,
+                                      color: AppColors.primary.withValues(alpha: 0.5),
+                                    ),
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.storefront,
+                                      size: 40,
+                                      color: AppColors.primary,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.storefront,
+                                    size: 40,
+                                    color: AppColors.primary,
+                                  ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(

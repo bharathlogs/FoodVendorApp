@@ -4,11 +4,14 @@
 | ID | Description | Status | Fix Notes |
 |----|-------------|--------|-----------|
 | C1 | Map tiles wrong userAgentPackageName | FIXED | Changed from placeholder to com.vendorapp.food_vendor_app |
+| C2 | Vendor list shows "Something went wrong" | FIXED | Missing Firestore composite index for `isActive` + `locationUpdatedAt` query. Added index to `firestore.indexes.json` and deployed. |
 
 ## High Priority
 | ID | Description | Status | Fix Notes |
 |----|-------------|--------|-----------|
 | H1 | setState after dispose in MapScreen | FIXED | Added mounted checks in _initCustomerLocation async callback |
+| H2 | Login error message not user-friendly | FIXED | Added handling for `invalid-credential`, `INVALID_LOGIN_CREDENTIALS`, and `credential is incorrect` errors in `_formatError()` |
+| H3 | App icon showing default Flutter icon | FIXED | Added `flutter_launcher_icons` configuration to `pubspec.yaml` and regenerated icons |
 
 ## Medium Priority
 | ID | Description | Status | Fix Notes |

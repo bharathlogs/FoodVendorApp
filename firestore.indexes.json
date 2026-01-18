@@ -15,6 +15,22 @@
         { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "cuisineTags", "arrayConfig": "CONTAINS" }
       ]
+    },
+    {
+      "collectionGroup": "vendor_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "locationUpdatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "favorites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

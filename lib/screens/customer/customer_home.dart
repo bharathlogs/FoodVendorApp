@@ -1,32 +1,47 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/providers.dart';
 import 'vendor_list_screen.dart';
 import 'map_screen.dart';
+import 'favorites_screen.dart';
 
-class CustomerHome extends StatefulWidget {
+class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
 
   @override
-  State<CustomerHome> createState() => _CustomerHomeState();
+  ConsumerState<CustomerHome> createState() => _CustomerHomeState();
 }
 
-class _CustomerHomeState extends State<CustomerHome> {
+class _CustomerHomeState extends ConsumerState<CustomerHome> {
   int _currentIndex = 0;
-  final AuthService _authService = AuthService();
+
+  String get _title {
+    switch (_currentIndex) {
+      case 0:
+        return 'Find Food Vendors';
+      case 1:
+        return 'Nearby Vendors';
+      case 2:
+        return 'Favorites';
+      default:
+        return 'Food Finder';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isLoggedIn = _authService.currentUser != null;
+    final authState = ref.watch(authStateProvider);
+    final isLoggedIn = authState.valueOrNull != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentIndex == 0 ? 'Find Food Vendors' : 'Nearby Vendors'),
+        title: Text(_title),
         actions: [
           if (isLoggedIn)
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () async {
-                await _authService.signOut();
+                await ref.read(authServiceProvider).signOut();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(context, '/login');
                 }
@@ -46,6 +61,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         children: const [
           VendorListScreen(),
           MapScreen(),
+          FavoritesScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -65,6 +81,11 @@ class _CustomerHomeState extends State<CustomerHome> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: 'Favorites',
           ),
         ],
       ),

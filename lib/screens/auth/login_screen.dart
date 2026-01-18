@@ -112,13 +112,21 @@ class _LoginScreenState extends State<LoginScreen>
     if (error.contains('wrong-password')) {
       return 'Incorrect password';
     }
+    if (error.contains('invalid-credential') ||
+        error.contains('INVALID_LOGIN_CREDENTIALS') ||
+        error.contains('credential is incorrect')) {
+      return 'Invalid email or password. Please check your credentials.';
+    }
     if (error.contains('invalid-email')) {
       return 'Invalid email address';
     }
     if (error.contains('too-many-requests')) {
       return 'Too many attempts. Please try again later';
     }
-    return error.replaceAll('Exception: ', '');
+    if (error.contains('network-request-failed')) {
+      return 'Network error. Please check your connection.';
+    }
+    return error.replaceAll('Exception: ', '').replaceAll('Authentication error: ', '');
   }
 
   void _navigateToSignup() {

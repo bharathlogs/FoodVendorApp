@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper function to validate string length
+    function isValidString(field, minLen, maxLen) {
+      return field is string && field.size() >= minLen && field.size() <= maxLen;
+    }
+
+    // Helper function to validate price
+    function isValidPrice(price) {
+      return price is number && price >= 0 && price <= 99999;
+    }
+
+    // ============ USER DOCUMENTS ============
+    // Users can only read/write their own document
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false; // Prevent accidental deletion
+    }
+
+    // ============ VENDOR PROFILES ============
+    // Vendor profiles: owners can write, anyone can read active vendors
+    match /vendor_profiles/{vendorId} {
+      // Anyone can read active vendors, owners can read their own (even if inactive)
+      allow read: if resource.data.isActive == true || isOwner(vendorId);
+
+      // Only the vendor can create their own profile
+      allow create: if isOwner(vendorId) &&
+        isValidString(request.resource.data.businessName, 2, 100);
+
+      // Only the vendor can update their profile
+      allow update: if isOwner(vendorId) &&
+        // Validate business name if being updated
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['businessName']) ||
+         isValidString(request.resource.data.businessName, 2, 100)) &&
+        // Validate description if being updated
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) ||
+         request.resource.data.description.size() <= 500);
+
+      allow delete: if false; // Prevent accidental deletion
+
+      // ============ MENU ITEMS (subcollection) ============
+      match /menu_items/{itemId} {
+        // Anyone can read menu items (for customers viewing menus)
+        allow read: if true;
+
+        // Only the vendor can create menu items
+        allow create: if isOwner(vendorId) &&
+          isValidString(request.resource.data.name, 2, 100) &&
+          isValidPrice(request.resource.data.price);
+
+        // Only the vendor can update menu items
+        allow update: if isOwner(vendorId) &&
+          // Validate name if being updated
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) ||
+           isValidString(request.resource.data.name, 2, 100)) &&
+          // Validate price if being updated
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['price']) ||
+           isValidPrice(request.resource.data.price));
+
+        // Only the vendor can delete their menu items
+        allow delete: if isOwner(vendorId);
+      }
+    }
+
+    // ============ ORDERS ============
+    // Orders: vendor and customer can read, authenticated users can create
+    match /orders/{orderId} {
+      // Vendor and customer involved in the order can read it
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == resource.data.vendorId ||
+         request.auth.uid == resource.data.customerId);
+
+      // Authenticated users can create orders
+      allow create: if isAuthenticated() &&
+        request.resource.data.customerId == request.auth.uid;
+
+      // Only the vendor can update order status
+      allow update: if isAuthenticated() &&
+        request.auth.uid == resource.data.vendorId &&
+        // Only allow updating status and updatedAt fields
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'updatedAt']);
+
+      allow delete: if false; // Orders should never be deleted
+    }
+  }
+}

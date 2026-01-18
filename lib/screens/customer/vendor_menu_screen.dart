@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/menu_item.dart';
 import '../../models/vendor_profile.dart';
 import '../../services/database_service.dart';
@@ -150,21 +151,32 @@ class _VendorMenuScreenState extends State<VendorMenuScreen> {
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
               borderRadius: BorderRadius.circular(16),
-              image: widget.vendor.profileImageUrl != null
-                  ? DecorationImage(
-                      image: NetworkImage(widget.vendor.profileImageUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
               boxShadow: AppShadows.small,
             ),
-            child: widget.vendor.profileImageUrl == null
-                ? Icon(
+            clipBehavior: Clip.antiAlias,
+            child: widget.vendor.profileImageUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: widget.vendor.profileImageUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: AppColors.primaryLight,
+                      child: Icon(
+                        Icons.store,
+                        color: AppColors.primary.withValues(alpha: 0.5),
+                        size: 32,
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Icon(
+                      Icons.store,
+                      color: AppColors.primary,
+                      size: 32,
+                    ),
+                  )
+                : Icon(
                     Icons.store,
                     color: AppColors.primary,
                     size: 32,
-                  )
-                : null,
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(

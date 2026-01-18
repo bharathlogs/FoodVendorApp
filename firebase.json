@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"foodvendorapp2911","appId":"1:847733100272:android:8c3eff93a12b74930cfc35","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"foodvendorapp2911","configurations":{"android":"1:847733100272:android:8c3eff93a12b74930cfc35"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "foodvendorapp2911",
+          "appId": "1:847733100272:android:8c3eff93a12b74930cfc35",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "foodvendorapp2911",
+          "configurations": {
+            "android": "1:847733100272:android:8c3eff93a12b74930cfc35"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

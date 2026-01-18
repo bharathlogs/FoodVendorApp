@@ -123,4 +123,116 @@ class Validators {
       return null;
     };
   }
+
+  /// Validate business name
+  static String? businessName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Business name is required';
+    }
+
+    if (value.trim().length < 2) {
+      return 'Business name must be at least 2 characters';
+    }
+
+    if (value.length > 100) {
+      return 'Business name must be under 100 characters';
+    }
+
+    // Check for potentially malicious content
+    if (_containsHtmlOrScript(value)) {
+      return 'Invalid characters detected';
+    }
+
+    return null;
+  }
+
+  /// Validate description field
+  static String? description(String? value, {int maxLength = 500}) {
+    if (value == null || value.isEmpty) {
+      return null; // Description is optional
+    }
+
+    if (value.length > maxLength) {
+      return 'Description must be under $maxLength characters';
+    }
+
+    if (_containsHtmlOrScript(value)) {
+      return 'Invalid characters detected';
+    }
+
+    return null;
+  }
+
+  /// Check for HTML tags or script content
+  static bool _containsHtmlOrScript(String value) {
+    return RegExp(r'<[^>]*>|javascript:|on\w+=', caseSensitive: false)
+        .hasMatch(value);
+  }
+}
+
+/// Validators specific to menu items
+class MenuItemValidators {
+  /// Validate menu item name
+  static String? name(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Item name is required';
+    }
+
+    if (value.trim().length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+
+    if (value.length > 100) {
+      return 'Name must be under 100 characters';
+    }
+
+    // Sanitize HTML/script injection
+    if (RegExp(r'<[^>]*>|javascript:|on\w+=', caseSensitive: false)
+        .hasMatch(value)) {
+      return 'Invalid characters detected';
+    }
+
+    return null;
+  }
+
+  /// Validate menu item price
+  static String? price(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Price is required';
+    }
+
+    final price = double.tryParse(value.trim());
+    if (price == null) {
+      return 'Please enter a valid number';
+    }
+
+    if (price < 0) {
+      return 'Price cannot be negative';
+    }
+
+    if (price > 99999) {
+      return 'Price must be under 99,999';
+    }
+
+    return null;
+  }
+
+  /// Validate menu item description (optional)
+  static String? description(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Description is optional
+    }
+
+    if (value.length > 200) {
+      return 'Description must be under 200 characters';
+    }
+
+    // Sanitize HTML/script injection
+    if (RegExp(r'<[^>]*>|javascript:|on\w+=', caseSensitive: false)
+        .hasMatch(value)) {
+      return 'Invalid characters detected';
+    }
+
+    return null;
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/menu_item.dart';
+import '../../utils/validators.dart';
 
 class MenuItemForm extends StatefulWidget {
   final MenuItem? existingItem; // null for new item, populated for edit
@@ -108,15 +109,8 @@ class _MenuItemFormState extends State<MenuItemForm> {
                 border: OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.words,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter item name';
-                }
-                if (value.trim().length < 2) {
-                  return 'Name must be at least 2 characters';
-                }
-                return null;
-              },
+              maxLength: 100,
+              validator: MenuItemValidators.name,
             ),
             const SizedBox(height: 16),
 
@@ -133,19 +127,7 @@ class _MenuItemFormState extends State<MenuItemForm> {
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
               ],
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter price';
-                }
-                final price = double.tryParse(value.trim());
-                if (price == null || price <= 0) {
-                  return 'Please enter a valid price';
-                }
-                if (price > 10000) {
-                  return 'Price seems too high';
-                }
-                return null;
-              },
+              validator: MenuItemValidators.price,
             ),
             const SizedBox(height: 16),
 
@@ -158,7 +140,8 @@ class _MenuItemFormState extends State<MenuItemForm> {
                 border: OutlineInputBorder(),
               ),
               maxLines: 2,
-              maxLength: 150,
+              maxLength: 200,
+              validator: MenuItemValidators.description,
             ),
             const SizedBox(height: 24),
 

@@ -11,6 +11,9 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/vendor/vendor_home.dart';
 import 'screens/customer/customer_home.dart';
+import 'screens/splash/splash_screen.dart';
+import 'core/navigation/app_page_route.dart';
+import 'core/navigation/app_transitions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,17 +38,71 @@ class MyApp extends StatelessWidget {
       title: 'Food Finder',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      // Wrap with WithForegroundTask to handle lifecycle
       home: const WithForegroundTask(
-        child: AuthWrapper(),
+        child: SplashWrapper(),
       ),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/signup': (context) => const SignupScreen(),
-        '/vendor-home': (context) => const WithForegroundTask(child: VendorHome()),
-        '/customer-home': (context) => const CustomerHome(),
-      },
+      onGenerateRoute: _onGenerateRoute,
     );
+  }
+
+  Route<dynamic>? _onGenerateRoute(RouteSettings settings) {
+    Widget? page;
+    AppTransitionType transitionType = AppTransitionType.slideRight;
+
+    switch (settings.name) {
+      case '/login':
+        page = const LoginScreen();
+        transitionType = AppTransitionType.fade;
+        break;
+      case '/signup':
+        page = const SignupScreen();
+        transitionType = AppTransitionType.slideUp;
+        break;
+      case '/vendor-home':
+        page = const WithForegroundTask(child: VendorHome());
+        transitionType = AppTransitionType.fadeScale;
+        break;
+      case '/customer-home':
+        page = const CustomerHome();
+        transitionType = AppTransitionType.fadeScale;
+        break;
+    }
+
+    if (page == null) return null;
+
+    return AppPageRoute(
+      page: page,
+      transitionType: transitionType,
+      settings: settings,
+    );
+  }
+}
+
+/// Wrapper that shows splash screen then transitions to auth
+class SplashWrapper extends StatefulWidget {
+  const SplashWrapper({super.key});
+
+  @override
+  State<SplashWrapper> createState() => _SplashWrapperState();
+}
+
+class _SplashWrapperState extends State<SplashWrapper> {
+  bool _showSplash = true;
+
+  void _onSplashComplete() {
+    if (mounted) {
+      setState(() {
+        _showSplash = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashScreen(onComplete: _onSplashComplete);
+    }
+    return const AuthWrapper();
   }
 }
 

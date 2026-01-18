@@ -1,17 +1,45 @@
 import 'package:flutter/material.dart';
 import '../../models/vendor_profile.dart';
 import '../../services/database_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common/app_refresh_indicator.dart';
+import '../../widgets/common/animated_list_item.dart';
+import '../../core/navigation/app_page_route.dart';
+import '../../core/navigation/app_transitions.dart';
 import 'vendor_menu_screen.dart';
 
-class VendorListScreen extends StatelessWidget {
+class VendorListScreen extends StatefulWidget {
   const VendorListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final databaseService = DatabaseService();
+  State<VendorListScreen> createState() => _VendorListScreenState();
+}
 
+class _VendorListScreenState extends State<VendorListScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  late Stream<List<VendorProfile>> _vendorStream;
+  int _refreshKey = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _vendorStream = _databaseService.getActiveVendorsWithFreshnessCheck();
+  }
+
+  Future<void> _handleRefresh() async {
+    setState(() {
+      _refreshKey++;
+      _vendorStream = _databaseService.getActiveVendorsWithFreshnessCheck();
+    });
+    // Minimum refresh time for visual feedback
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<VendorProfile>>(
-      stream: databaseService.getActiveVendorsWithFreshnessCheck(),
+      key: ValueKey(_refreshKey),
+      stream: _vendorStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -22,9 +50,17 @@ class VendorListScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+                Icon(Icons.error_outline, size: 48, color: AppColors.error.withValues(alpha: 0.6)),
                 const SizedBox(height: 16),
-                Text('Error: ${snapshot.error}'),
+                Text(
+                  'Something went wrong',
+                  style: AppTextStyles.h4,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pull down to refresh',
+                  style: AppTextStyles.bodyMedium,
+                ),
               ],
             ),
           );
@@ -33,16 +69,34 @@ class VendorListScreen extends StatelessWidget {
         final vendors = snapshot.data ?? [];
 
         if (vendors.isEmpty) {
-          return _buildEmptyState();
+          return AppRefreshIndicator(
+            onRefresh: _handleRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: _buildEmptyState(),
+                ),
+              ],
+            ),
+          );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: vendors.length,
-          itemBuilder: (context, index) {
-            final vendor = vendors[index];
-            return _buildVendorCard(context, vendor);
-          },
+        return AppRefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            itemCount: vendors.length,
+            itemBuilder: (context, index) {
+              final vendor = vendors[index];
+              return AnimatedListItem(
+                index: index,
+                child: _buildVendorCard(context, vendor),
+              );
+            },
+          ),
         );
       },
     );
@@ -53,24 +107,38 @@ class VendorListScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.storefront_outlined,
-            size: 64,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No vendors online',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
             ),
+            child: Icon(
+              Icons.storefront_outlined,
+              size: 50,
+              color: AppColors.primary.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No vendors online',
+            style: AppTextStyles.h3,
           ),
           const SizedBox(height: 8),
           Text(
             'Check back later for available\nfood vendors in your area',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Pull down to refresh',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textHint,
+            ),
           ),
         ],
       ),
@@ -84,27 +152,35 @@ class VendorListScreen extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => VendorMenuScreen(vendor: vendor),
+            AppPageRoute(
+              page: VendorMenuScreen(vendor: vendor),
+              transitionType: AppTransitionType.slideRight,
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               // Vendor avatar
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.orange.shade100,
-                backgroundImage: vendor.profileImageUrl != null
-                    ? NetworkImage(vendor.profileImageUrl!)
-                    : null,
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(16),
+                  image: vendor.profileImageUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(vendor.profileImageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
                 child: vendor.profileImageUrl == null
                     ? Icon(
                         Icons.store,
-                        color: Colors.orange.shade700,
+                        color: AppColors.primary,
                         size: 28,
                       )
                     : null,
@@ -121,20 +197,17 @@ class VendorListScreen extends StatelessWidget {
                         Expanded(
                           child: Text(
                             vendor.businessName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: AppTextStyles.h4,
                           ),
                         ),
                         // Online indicator
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
+                            horizontal: 10,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade100,
+                            color: AppColors.success.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -143,18 +216,24 @@ class VendorListScreen extends StatelessWidget {
                               Container(
                                 width: 8,
                                 height: 8,
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Colors.green,
+                                  color: AppColors.success,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.success.withValues(alpha: 0.4),
+                                      blurRadius: 4,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 6),
                               Text(
-                                'Online',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green.shade700,
-                                  fontWeight: FontWeight.w500,
+                                'Open',
+                                style: AppTextStyles.labelMedium.copyWith(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -163,37 +242,35 @@ class VendorListScreen extends StatelessWidget {
                       ],
                     ),
                     if (vendor.description.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         vendor.description,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                     if (vendor.cuisineTags.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Wrap(
                         spacing: 6,
                         runSpacing: 4,
                         children: vendor.cuisineTags.take(3).map((tag) {
                           return Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
+                              horizontal: 10,
+                              vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
+                              color: AppColors.primaryLight.withValues(alpha: 0.6),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               tag,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.orange.shade700,
+                              style: AppTextStyles.labelMedium.copyWith(
+                                color: AppColors.primaryDark,
                               ),
                             ),
                           );
@@ -208,7 +285,7 @@ class VendorListScreen extends StatelessWidget {
               // Arrow
               Icon(
                 Icons.chevron_right,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
               ),
             ],
           ),

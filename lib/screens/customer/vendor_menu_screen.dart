@@ -2,60 +2,125 @@ import 'package:flutter/material.dart';
 import '../../models/menu_item.dart';
 import '../../models/vendor_profile.dart';
 import '../../services/database_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common/app_refresh_indicator.dart';
+import '../../widgets/common/animated_list_item.dart';
 
-class VendorMenuScreen extends StatelessWidget {
+class VendorMenuScreen extends StatefulWidget {
   final VendorProfile vendor;
 
   const VendorMenuScreen({super.key, required this.vendor});
 
   @override
-  Widget build(BuildContext context) {
-    final databaseService = DatabaseService();
+  State<VendorMenuScreen> createState() => _VendorMenuScreenState();
+}
 
+class _VendorMenuScreenState extends State<VendorMenuScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  late Stream<List<MenuItem>> _menuStream;
+  int _refreshKey = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _menuStream = _databaseService.getMenuItemsStream(widget.vendor.vendorId);
+  }
+
+  Future<void> _handleRefresh() async {
+    setState(() {
+      _refreshKey++;
+      _menuStream = _databaseService.getMenuItemsStream(widget.vendor.vendorId);
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(vendor.businessName),
+        title: Text(widget.vendor.businessName),
       ),
-      body: Column(
-        children: [
-          // Vendor header
-          _buildVendorHeader(),
+      body: AppRefreshIndicator(
+        onRefresh: _handleRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // Vendor header
+            SliverToBoxAdapter(
+              child: _buildVendorHeader(),
+            ),
 
-          // Menu items list
-          Expanded(
-            child: StreamBuilder<List<MenuItem>>(
-              stream: databaseService.getMenuItemsStream(vendor.vendorId),
+            // Menu items list
+            StreamBuilder<List<MenuItem>>(
+              key: ValueKey(_refreshKey),
+              stream: _menuStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()),
+                  );
                 }
 
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
+                  return SliverFillRemaining(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: AppColors.error.withValues(alpha: 0.6),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load menu',
+                            style: AppTextStyles.h4,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Pull down to try again',
+                            style: AppTextStyles.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 }
 
                 final allItems = snapshot.data ?? [];
-                // Only show available items to customers
                 final items = allItems.where((item) => item.isAvailable).toList();
 
                 if (items.isEmpty) {
-                  return _buildEmptyMenu();
+                  return SliverFillRemaining(
+                    child: _buildEmptyMenu(),
+                  );
                 }
 
-                return ListView.builder(
+                return SliverPadding(
                   padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return _buildMenuItemCard(item);
-                  },
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final item = items[index];
+                        return AnimatedListItem(
+                          index: index,
+                          child: _buildMenuItemCard(item),
+                        );
+                      },
+                      childCount: items.length,
+                    ),
+                  ),
                 );
               },
             ),
-          ),
-        ],
+
+            // Bottom padding
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 100),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomBar(context),
     );
@@ -65,23 +130,38 @@ class VendorMenuScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryLight.withValues(alpha: 0.5),
+            AppColors.primaryLight.withValues(alpha: 0.2),
+          ],
+        ),
         border: Border(
-          bottom: BorderSide(color: Colors.orange.shade100),
+          bottom: BorderSide(color: AppColors.primaryLight),
         ),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.orange.shade100,
-            backgroundImage: vendor.profileImageUrl != null
-                ? NetworkImage(vendor.profileImageUrl!)
-                : null,
-            child: vendor.profileImageUrl == null
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(16),
+              image: widget.vendor.profileImageUrl != null
+                  ? DecorationImage(
+                      image: NetworkImage(widget.vendor.profileImageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+              boxShadow: AppShadows.small,
+            ),
+            child: widget.vendor.profileImageUrl == null
                 ? Icon(
                     Icons.store,
-                    color: Colors.orange.shade700,
+                    color: AppColors.primary,
                     size: 32,
                   )
                 : null,
@@ -92,45 +172,40 @@ class VendorMenuScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  vendor.businessName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  widget.vendor.businessName,
+                  style: AppTextStyles.h3,
                 ),
-                if (vendor.description.isNotEmpty) ...[
+                if (widget.vendor.description.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    vendor.description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade600,
+                    widget.vendor.description,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (vendor.cuisineTags.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                if (widget.vendor.cuisineTags.isNotEmpty) ...[
+                  const SizedBox(height: 10),
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: vendor.cuisineTags.map((tag) {
+                    children: widget.vendor.cuisineTags.map((tag) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
+                          horizontal: 10,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
+                          border: Border.all(color: AppColors.primaryLight),
                         ),
                         child: Text(
                           tag,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.orange.shade700,
+                          style: AppTextStyles.labelMedium.copyWith(
+                            color: AppColors.primaryDark,
                           ),
                         ),
                       );
@@ -150,24 +225,38 @@ class VendorMenuScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.restaurant_menu,
-            size: 64,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No items available',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
             ),
+            child: Icon(
+              Icons.restaurant_menu,
+              size: 50,
+              color: AppColors.primary.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No items available',
+            style: AppTextStyles.h3,
           ),
           const SizedBox(height: 8),
           Text(
             'This vendor hasn\'t added\nany menu items yet',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Pull down to refresh',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textHint,
+            ),
           ),
         ],
       ),
@@ -189,19 +278,15 @@ class VendorMenuScreen extends StatelessWidget {
                 children: [
                   Text(
                     item.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.h4,
                   ),
                   if (item.description != null &&
                       item.description!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       item.description!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -212,17 +297,15 @@ class VendorMenuScreen extends StatelessWidget {
 
             // Price
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Rs ${item.price.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
+                style: AppTextStyles.price.copyWith(
+                  color: AppColors.success,
                 ),
               ),
             ),
@@ -239,32 +322,44 @@ class VendorMenuScreen extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.directions_walk, color: Colors.orange.shade700),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Walk to the stall to place your order',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 14,
-                    ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.directions_walk,
+                  color: AppColors.primaryDark,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Walk to the stall to place your order',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
                   ),
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

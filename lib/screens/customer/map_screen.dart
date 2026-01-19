@@ -6,6 +6,7 @@ import '../../services/database_service.dart';
 import '../../services/customer_location_service.dart';
 import '../../utils/cuisine_categories.dart';
 import '../../widgets/customer/vendor_bottom_sheet.dart';
+import '../../widgets/customer/animated_vendor_marker.dart';
 import 'vendor_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -15,10 +16,19 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   final DatabaseService _databaseService = DatabaseService();
   final CustomerLocationService _locationService = CustomerLocationService();
+
+  // Position tracker for smooth vendor movement animations
+  final VendorPositionTracker _positionTracker = VendorPositionTracker(
+    animationDuration: const Duration(milliseconds: 800),
+  );
+
+  // Store current vendors for reference in callbacks
+  Map<String, VendorProfile> _vendorMap = {};
 
   LatLng? _customerLocation;
   bool _isLoadingLocation = true;
@@ -39,6 +49,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _mapController.dispose();
+    _positionTracker.dispose();
     super.dispose();
   }
 
@@ -238,40 +249,58 @@ class _MapScreenState extends State<MapScreen> {
         // Filter vendors with valid location
         vendors = vendors.where((v) => v.location != null).toList();
 
-        final markers = vendors.map((vendor) {
-          return Marker(
-            point: LatLng(
-              vendor.location!.latitude,
-              vendor.location!.longitude,
-            ),
-            width: 50,
-            height: 50,
-            child: GestureDetector(
-              onTap: () => _showVendorBottomSheet(vendor),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.storefront,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ),
-          );
-        }).toList();
+        // Update vendor map and position tracker
+        _vendorMap = {for (var v in vendors) v.vendorId: v};
 
-        return MarkerLayer(markers: markers);
+        // Update position tracker with new positions
+        for (final vendor in vendors) {
+          _positionTracker.updatePosition(
+            vendor.vendorId,
+            LatLng(vendor.location!.latitude, vendor.location!.longitude),
+          );
+        }
+
+        // Use AnimatedMarkerLayer for smooth movement
+        return AnimatedMarkerLayer(
+          positionTracker: _positionTracker,
+          builder: (animatedPositions) {
+            final markers = vendors.map((vendor) {
+              // Get animated position or fall back to actual position
+              final position = animatedPositions[vendor.vendorId] ??
+                  LatLng(vendor.location!.latitude, vendor.location!.longitude);
+
+              return Marker(
+                point: position,
+                width: 50,
+                height: 50,
+                child: GestureDetector(
+                  onTap: () => _showVendorBottomSheet(vendor),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.storefront,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              );
+            }).toList();
+
+            return MarkerLayer(markers: markers);
+          },
+        );
       },
     );
   }

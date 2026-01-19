@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/vendor_profile.dart';
 import '../../utils/distance_formatter.dart';
@@ -19,10 +20,12 @@ class VendorBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -33,7 +36,7 @@ class VendorBottomSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -77,7 +80,9 @@ class VendorBottomSheet extends StatelessWidget {
                         children: [
                           Text(
                             vendor.businessName,
-                            style: AppTextStyles.h3,
+                            style: AppTextStyles.h3.copyWith(
+                              color: isDark ? Colors.white : null,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -142,7 +147,9 @@ class VendorBottomSheet extends StatelessWidget {
                                   ),
                                   Text(
                                     'away',
-                                    style: AppTextStyles.bodySmall,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: isDark ? Colors.grey.shade400 : null,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -186,7 +193,9 @@ class VendorBottomSheet extends StatelessWidget {
                                   ),
                                   Text(
                                     'walk',
-                                    style: AppTextStyles.bodySmall,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: isDark ? Colors.grey.shade400 : null,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -231,7 +240,9 @@ class VendorBottomSheet extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     vendor.description,
-                    style: AppTextStyles.bodyMedium,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: isDark ? Colors.grey.shade300 : null,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -239,11 +250,28 @@ class VendorBottomSheet extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // View Menu Button
-                PrimaryButton(
-                  text: 'View Menu',
-                  icon: Icons.restaurant_menu,
-                  onPressed: onViewMenu,
+                // Action Buttons Row
+                Row(
+                  children: [
+                    // Call Button (only show if phone number available)
+                    if (vendor.phoneNumber != null &&
+                        vendor.phoneNumber!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _CallButton(
+                          phoneNumber: vendor.phoneNumber!,
+                        ),
+                      ),
+
+                    // View Menu Button
+                    Expanded(
+                      child: PrimaryButton(
+                        text: 'View Menu',
+                        icon: Icons.restaurant_menu,
+                        onPressed: onViewMenu,
+                      ),
+                    ),
+                  ],
                 ),
 
                 // Safe area
@@ -263,5 +291,71 @@ class VendorBottomSheet extends StatelessWidget {
     if (minutes < 60) return '$minutes min';
     final hours = minutes ~/ 60;
     return '${hours}h ${minutes % 60}m';
+  }
+}
+
+/// Call button widget that launches the phone dialer
+class _CallButton extends StatelessWidget {
+  final String phoneNumber;
+
+  const _CallButton({required this.phoneNumber});
+
+  Future<void> _makePhoneCall(BuildContext context) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not launch phone dialer'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.green,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _makePhoneCall(context),
+          borderRadius: BorderRadius.circular(16),
+          child: const Icon(
+            Icons.phone,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
+    );
   }
 }

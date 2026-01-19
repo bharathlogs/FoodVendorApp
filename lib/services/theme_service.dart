@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeService extends ChangeNotifier {
   static const String _themeModeKey = 'theme_mode';
 
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
   ThemeMode get themeMode => _themeMode;
 
   ThemeService() {
@@ -33,11 +33,8 @@ class ThemeService extends ChangeNotifier {
   }
 
   Future<void> toggleTheme() async {
-    final newMode = _themeMode == ThemeMode.light
-        ? ThemeMode.dark
-        : _themeMode == ThemeMode.dark
-            ? ThemeMode.system
-            : ThemeMode.light;
+    // Toggle between light and dark only
+    final newMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     await setThemeMode(newMode);
   }
 
@@ -48,7 +45,7 @@ class ThemeService extends ChangeNotifier {
       case ThemeMode.dark:
         return 'dark';
       case ThemeMode.system:
-        return 'system';
+        return 'light'; // Treat system as light
     }
   }
 
@@ -59,29 +56,15 @@ class ThemeService extends ChangeNotifier {
       case 'dark':
         return ThemeMode.dark;
       default:
-        return ThemeMode.system;
+        return ThemeMode.light; // Default to light
     }
   }
 
   String get themeModeLabel {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-      case ThemeMode.system:
-        return 'System';
-    }
+    return _themeMode == ThemeMode.dark ? 'Dark' : 'Light';
   }
 
   IconData get themeModeIcon {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return Icons.light_mode;
-      case ThemeMode.dark:
-        return Icons.dark_mode;
-      case ThemeMode.system:
-        return Icons.settings_brightness;
-    }
+    return _themeMode == ThemeMode.dark ? Icons.dark_mode : Icons.light_mode;
   }
 }

@@ -237,3 +237,127 @@ share_plus: ^10.1.4
 - Tap share button on vendor detail
 - Share sheet opens with link
 - Opening link navigates to vendor detail screen
+
+---
+
+## Sprint 5.1: Additional Enhancements
+
+**Date:** January 2026
+**Status:** Complete
+
+### 6. Vendor Phone Number & Call Functionality
+
+**Goal:** Collect phone numbers from vendors during signup and allow customers to call vendors directly from the map.
+
+**Dependencies Added:**
+```yaml
+url_launcher: ^6.2.6
+```
+
+**Files Modified:**
+
+| File | Changes |
+|------|---------|
+| `lib/models/vendor_profile.dart` | Added `phoneNumber` field |
+| `lib/screens/auth/signup_screen.dart` | Made phone number **required** for vendors (optional for customers) |
+| `lib/services/auth_service.dart` | Store phone number in vendor profile during registration |
+| `lib/widgets/customer/vendor_bottom_sheet.dart` | Added green call button with url_launcher integration |
+| `pubspec.yaml` | Added `url_launcher: ^6.2.6` |
+
+**Flow:**
+1. Vendor registers → must provide phone number (required field)
+2. Phone number stored in `vendor_profiles` collection
+3. Customer taps vendor marker on map → bottom sheet shows
+4. If vendor has phone number, green call button appears
+5. Tapping call button opens device dialer with vendor's number
+
+**Validation:**
+- Uses `Validators.phoneRequired` for vendors
+- Uses `Validators.phoneOptional` for customers
+- Regex pattern: `^\+?[0-9]{10,15}$`
+
+---
+
+### 7. Real-time Vendor Movement with Smooth Animations
+
+**Goal:** When vendors move in real-time, animate their marker positions smoothly on the customer's map instead of snapping.
+
+**No New Dependencies**
+
+**Files Created:**
+- `lib/widgets/customer/animated_vendor_marker.dart` - Animation tracking system:
+  - `VendorPositionTracker` - Tracks vendor positions and manages animation state
+  - `VendorAnimationData` - Stores previous/target positions for interpolation
+  - `AnimatedMarkerLayer` - Widget that rebuilds at 60fps during active animations
+
+**Files Modified:**
+
+| File | Changes |
+|------|---------|
+| `lib/screens/customer/map_screen.dart` | Added `SingleTickerProviderStateMixin`, `VendorPositionTracker`, wrapped markers in `AnimatedMarkerLayer` |
+
+**Animation Details:**
+- Duration: 800ms per position change
+- Easing: `Curves.easeInOutCubic` for smooth acceleration/deceleration
+- Frame rate: 60fps using Flutter `Ticker`
+- Battery efficient: Ticker stops when no active animations
+
+**How It Works:**
+1. Firebase streams new vendor location via `getActiveVendorsWithFreshnessCheck()`
+2. Position tracker detects position change for vendor
+3. Stores previous position and starts animation
+4. `AnimatedMarkerLayer` rebuilds at 60fps, interpolating lat/lng
+5. Marker smoothly glides from old position to new position
+6. Animation completes, ticker stops until next update
+
+**Technical Implementation:**
+```dart
+// Position interpolation
+final lat = previousPosition.latitude +
+    (targetPosition.latitude - previousPosition.latitude) * easedProgress;
+final lng = previousPosition.longitude +
+    (targetPosition.longitude - previousPosition.longitude) * easedProgress;
+```
+
+---
+
+## Updated Summary
+
+### All Dependencies in pubspec.yaml
+
+```yaml
+# Biometric Authentication
+local_auth: ^2.3.0
+
+# Geohashing
+dart_geohash: ^2.0.0
+
+# Deep Linking & Sharing
+app_links: ^6.3.2
+share_plus: ^10.1.4
+
+# URL Launcher (for phone dialer)
+url_launcher: ^6.2.6
+```
+
+### All New Files Created
+
+| Feature | Files |
+|---------|-------|
+| Biometric Auth | `biometric_service.dart`, `biometric_prompt_screen.dart` |
+| Reviews | `review.dart`, `star_rating.dart`, `review_form.dart`, `review_list.dart` |
+| Geohashing | `geohash_utils.dart` |
+| Deep Links | `deep_link_service.dart` |
+| Animated Markers | `animated_vendor_marker.dart` |
+
+### Verification for New Features
+
+### Phone Number & Call
+- Register as vendor → phone number is required
+- Customer views vendor on map → call button appears if phone available
+- Tap call button → device dialer opens with vendor's number
+
+### Real-time Animations
+- Vendor goes online and moves location
+- Customer watching map sees marker glide smoothly to new position
+- No sudden "jumping" of markers

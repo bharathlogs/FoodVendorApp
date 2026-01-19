@@ -81,7 +81,7 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
     _loadSavedTheme();
-    return ThemeMode.system;
+    return ThemeMode.light;
   }
 
   Future<void> _loadSavedTheme() async {
@@ -103,11 +103,8 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   }
 
   Future<void> toggleTheme() async {
-    final newMode = state == ThemeMode.light
-        ? ThemeMode.dark
-        : state == ThemeMode.dark
-            ? ThemeMode.system
-            : ThemeMode.light;
+    // Toggle between light and dark only
+    final newMode = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     await setThemeMode(newMode);
   }
 
@@ -118,7 +115,7 @@ class ThemeNotifier extends Notifier<ThemeMode> {
       case ThemeMode.dark:
         return 'dark';
       case ThemeMode.system:
-        return 'system';
+        return 'light'; // Treat system as light
     }
   }
 
@@ -129,30 +126,16 @@ class ThemeNotifier extends Notifier<ThemeMode> {
       case 'dark':
         return ThemeMode.dark;
       default:
-        return ThemeMode.system;
+        return ThemeMode.light; // Default to light
     }
   }
 
   String get themeModeLabel {
-    switch (state) {
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-      case ThemeMode.system:
-        return 'System';
-    }
+    return state == ThemeMode.dark ? 'Dark' : 'Light';
   }
 
   IconData get themeModeIcon {
-    switch (state) {
-      case ThemeMode.light:
-        return Icons.light_mode;
-      case ThemeMode.dark:
-        return Icons.dark_mode;
-      case ThemeMode.system:
-        return Icons.settings_brightness;
-    }
+    return state == ThemeMode.dark ? Icons.dark_mode : Icons.light_mode;
   }
 }
 

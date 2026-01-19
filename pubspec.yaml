@@ -72,6 +72,12 @@ dependencies:
   app_links: ^6.3.2
   share_plus: ^10.1.4
 
+  # Google Sign-In
+  google_sign_in: ^6.2.2
+
+  # URL Launcher (for phone dialer)
+  url_launcher: ^6.2.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

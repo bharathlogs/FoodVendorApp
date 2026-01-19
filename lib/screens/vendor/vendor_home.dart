@@ -154,6 +154,9 @@ class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStat
                   // Cuisine Card
                   _buildCuisineCard(),
 
+                  // Phone Number Card
+                  _buildPhoneCard(),
+
                   const SizedBox(height: 24),
 
                   // Error Message
@@ -673,6 +676,139 @@ class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStat
         ],
       ),
     );
+  }
+
+  Widget _buildPhoneCard() {
+    final phoneNumber = _vendorProfile?.phoneNumber;
+
+    return AppCard(
+      onTap: () => _showPhoneEditDialog(),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.phone,
+              color: Colors.green.shade600,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Phone Number',
+                  style: AppTextStyles.h4.copyWith(fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  phoneNumber?.isNotEmpty == true
+                      ? phoneNumber!
+                      : 'Add your contact number',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: phoneNumber?.isNotEmpty == true
+                        ? null
+                        : AppColors.warning,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.edit,
+            size: 16,
+            color: AppColors.textHint,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPhoneEditDialog() async {
+    final controller = TextEditingController(
+      text: _vendorProfile?.phoneNumber ?? '',
+    );
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Phone Number'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Phone Number',
+            hintText: '+1234567890',
+            prefixIcon: Icon(Icons.phone),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && mounted) {
+      // Validate phone number
+      final phoneRegex = RegExp(r'^\+?[0-9]{10,15}$');
+      if (result.isEmpty || !phoneRegex.hasMatch(result)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid phone number (10-15 digits)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      try {
+        await _databaseService.updateVendorProfile(
+          _authService.currentUser!.uid,
+          {'phoneNumber': result},
+        );
+
+        // Refresh profile
+        final profile = await _databaseService.getVendorProfile(
+          _authService.currentUser!.uid,
+        );
+        if (mounted) {
+          setState(() {
+            _vendorProfile = profile;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone number updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating phone number: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildErrorMessage() {

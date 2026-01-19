@@ -33,6 +33,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
 
   UserRole _selectedRole = UserRole.customer;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _errorMessage;
   String _passwordValue = '';
 
@@ -136,6 +137,35 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
       return 'Invalid email address';
     }
     return error.replaceAll('Exception: ', '');
+  }
+
+  Future<void> _signUpWithGoogle() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await _authService.signInWithGoogle(defaultRole: _selectedRole);
+
+      if (user != null && mounted) {
+        if (user.role == UserRole.vendor) {
+          Navigator.pushReplacementNamed(context, '/vendor-home');
+        } else {
+          Navigator.pushReplacementNamed(context, '/customer-home');
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = _formatError(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -258,15 +288,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
 
                         const SizedBox(height: 16),
 
-                        // Phone Field
+                        // Phone Field (required for vendors, optional for customers)
                         AppTextField(
                           controller: _phoneController,
-                          label: 'Phone Number (optional)',
+                          label: _selectedRole == UserRole.vendor
+                              ? 'Phone Number'
+                              : 'Phone Number (optional)',
                           hint: 'Enter your phone number',
                           prefixIcon: Icons.phone_outlined,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
-                          validator: Validators.phoneOptional,
+                          validator: _selectedRole == UserRole.vendor
+                              ? Validators.phoneRequired
+                              : Validators.phoneOptional,
                         ),
 
                         const SizedBox(height: 16),
@@ -334,6 +368,34 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
                           isLoading: _isLoading,
                           icon: Icons.person_add_outlined,
                         ),
+
+                        const SizedBox(height: 16),
+
+                        // Divider
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'or',
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.textHint,
+                                ),
+                              ),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Google Sign-Up Button
+                        _GoogleSignUpButton(
+                          onPressed: _isGoogleLoading ? null : _signUpWithGoogle,
+                          isLoading: _isGoogleLoading,
+                          roleLabel: _selectedRole == UserRole.vendor ? 'Vendor' : 'Customer',
+                        ),
                       ],
                     ),
                   ),
@@ -377,6 +439,76 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
             SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Google Sign-Up Button Widget
+class _GoogleSignUpButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  final String roleLabel;
+
+  const _GoogleSignUpButton({
+    required this.onPressed,
+    this.isLoading = false,
+    required this.roleLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+          side: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.border,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.network(
+                    'https://www.google.com/favicon.ico',
+                    width: 20,
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.g_mobiledata,
+                        size: 24,
+                        color: Colors.red,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Sign up with Google as $roleLabel',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

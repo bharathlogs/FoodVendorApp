@@ -48,6 +48,10 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimary;
+    final iconColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
+
     return TextFormField(
       controller: widget.controller,
       obscureText: widget.isPassword && _obscureText,
@@ -61,14 +65,14 @@ class _AppTextFieldState extends State<AppTextField> {
       onFieldSubmitted: widget.onFieldSubmitted,
       focusNode: widget.focusNode,
       autofocus: widget.autofocus,
-      style: AppTextStyles.bodyLarge,
+      style: AppTextStyles.bodyLarge.copyWith(color: textColor),
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
             ? Icon(
                 widget.prefixIcon,
-                color: AppColors.textSecondary,
+                color: iconColor,
                 size: 22,
               )
             : null,
@@ -78,7 +82,7 @@ class _AppTextFieldState extends State<AppTextField> {
                   _obscureText
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
-                  color: AppColors.textSecondary,
+                  color: iconColor,
                   size: 22,
                 ),
                 onPressed: () {

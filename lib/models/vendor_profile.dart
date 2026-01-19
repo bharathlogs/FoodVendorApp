@@ -12,6 +12,7 @@ class VendorProfile {
   final double averageRating;
   final int totalRatings;
   final String? geohash;
+  final String? phoneNumber;
 
   VendorProfile({
     required this.vendorId,
@@ -25,6 +26,7 @@ class VendorProfile {
     this.averageRating = 0.0,
     this.totalRatings = 0,
     this.geohash,
+    this.phoneNumber,
   });
 
   factory VendorProfile.fromFirestore(DocumentSnapshot doc) {
@@ -43,6 +45,7 @@ class VendorProfile {
       averageRating: (data['averageRating'] ?? 0.0).toDouble(),
       totalRatings: data['totalRatings'] ?? 0,
       geohash: data['geohash'],
+      phoneNumber: data['phoneNumber'],
     );
   }
 
@@ -60,6 +63,7 @@ class VendorProfile {
       'averageRating': averageRating,
       'totalRatings': totalRatings,
       'geohash': geohash,
+      'phoneNumber': phoneNumber,
     };
   }
 }

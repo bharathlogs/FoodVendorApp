@@ -31,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   late Animation<Offset> _slideAnimation;
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _errorMessage;
 
   @override
@@ -156,6 +157,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     Navigator.pushReplacementNamed(context, '/customer-home');
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await _authService.signInWithGoogle();
+
+      if (user != null && mounted) {
+        // Store credential for biometric auth and mark as verified
+        final biometricNotifier = ref.read(biometricProvider.notifier);
+        final biometricState = ref.read(biometricProvider);
+        if (biometricState.isEnabled) {
+          await biometricNotifier.storeCredential();
+        }
+        biometricNotifier.markVerified();
+
+        if (!mounted) return;
+
+        if (user.role == UserRole.vendor) {
+          Navigator.pushReplacementNamed(context, '/vendor-home');
+        } else {
+          Navigator.pushReplacementNamed(context, '/customer-home');
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = _formatError(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeNotifier = ref.read(themeProvider.notifier);
@@ -184,11 +224,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                   ],
                 ),
-                child: Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
                   child: Image.asset(
                     'assets/icon/app_icon.png',
-                    width: 50,
-                    height: 50,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return const Icon(
                         Icons.restaurant,
@@ -321,6 +363,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                         const SizedBox(height: 16),
 
+                        // Google Sign-In Button
+                        _GoogleSignInButton(
+                          onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                          isLoading: _isGoogleLoading,
+                        ),
+
+                        const SizedBox(height: 12),
+
                         // Guest Button
                         SecondaryButton(
                           text: 'Continue as Guest',
@@ -397,6 +447,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Google Sign-In Button Widget
+class _GoogleSignInButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _GoogleSignInButton({
+    required this.onPressed,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+          side: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.border,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.network(
+                    'https://www.google.com/favicon.ico',
+                    width: 20,
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.g_mobiledata,
+                        size: 24,
+                        color: Colors.red,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Continue with Google',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

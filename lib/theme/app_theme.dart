@@ -404,6 +404,26 @@ class AppTheme {
         ),
       ),
 
+      // Text Theme for dark mode
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: AppColors.textPrimaryDark),
+        bodyMedium: TextStyle(color: AppColors.textPrimaryDark),
+        bodySmall: TextStyle(color: AppColors.textSecondaryDark),
+        titleLarge: TextStyle(color: AppColors.textPrimaryDark),
+        titleMedium: TextStyle(color: AppColors.textPrimaryDark),
+        titleSmall: TextStyle(color: AppColors.textPrimaryDark),
+        labelLarge: TextStyle(color: AppColors.textPrimaryDark),
+        labelMedium: TextStyle(color: AppColors.textSecondaryDark),
+        labelSmall: TextStyle(color: AppColors.textSecondaryDark),
+      ),
+
+      // Text Selection Theme
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: AppColors.primary,
+        selectionColor: AppColors.primaryLightDark,
+        selectionHandleColor: AppColors.primary,
+      ),
+
       // Input Decoration Theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -427,6 +447,7 @@ class AppTheme {
         ),
         hintStyle: const TextStyle(color: AppColors.textHintDark),
         labelStyle: const TextStyle(color: AppColors.textSecondaryDark),
+        floatingLabelStyle: const TextStyle(color: AppColors.primary),
       ),
 
       // Chip Theme

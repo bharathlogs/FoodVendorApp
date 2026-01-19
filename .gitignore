@@ -60,7 +60,7 @@ lib/firebase_options.dart
 *.aab
 
 # Exception: Allow release builds in app-builds folder
-!app-builds/*.apk
+!app-builds/**/*.apk
 
 # Android gradle
 android/.gradle/

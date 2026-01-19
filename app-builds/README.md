@@ -1,32 +1,39 @@
 # App Builds
 
-This folder contains release builds of the Food Finder app, organized by version.
+This folder contains release builds of the Food Finder app.
 
 ## Folder Structure
 
 ```
 app-builds/
-├── README.md           (this file)
+├── README.md              (this file)
+├── latest-release/        (contains the latest APK)
+│   └── food-finder-v1.0.0-20260119.apk
 ├── v1.0.0/
-│   ├── food-finder-v1.0.0-20260119.apk
-│   └── README.md       (release notes, bug fixes, new features)
+│   └── README.md          (release notes, features, bug fixes)
 ├── v1.1.0/
-│   ├── food-finder-v1.1.0-YYYYMMDD.apk
 │   └── README.md
 └── ...
 ```
 
-## Available Versions
+## Latest Release
 
-| Version | Date | Highlights |
-|---------|------|------------|
+**Version:** 1.0.0
+**Date:** January 19, 2026
+**File:** [latest-release/food-finder-v1.0.0-20260119.apk](latest-release/)
+
+See [v1.0.0/README.md](v1.0.0/README.md) for release notes.
+
+## All Versions
+
+| Version | Date | Release Notes |
+|---------|------|---------------|
 | [v1.0.0](v1.0.0/) | Jan 19, 2026 | Riverpod, favorites, offline sync, profile menu |
 
 ## Naming Convention
 
-- **Folder:** `v{MAJOR}.{MINOR}.{PATCH}`
 - **APK:** `food-finder-v{VERSION}-{YYYYMMDD}.apk`
-- **README:** Contains release notes, bug fixes, and new features
+- **Version folders:** Contains only README with release notes
 
 ## Creating a New Release
 
@@ -36,33 +43,25 @@ app-builds/
    flutter build apk --release
    ```
 
-2. **Create version folder:**
+2. **Replace APK in latest-release:**
+   ```bash
+   cp build/app/outputs/flutter-apk/app-release.apk app-builds/latest-release/food-finder-v{VERSION}-{YYYYMMDD}.apk
+   # Remove old APK
+   rm app-builds/latest-release/food-finder-v{OLD_VERSION}*.apk
+   ```
+
+3. **Create version folder with README:**
    ```bash
    mkdir -p app-builds/v{VERSION}
+   # Create README.md with release notes
    ```
 
-3. **Copy APK:**
-   ```bash
-   cp build/app/outputs/flutter-apk/app-release.apk app-builds/v{VERSION}/food-finder-v{VERSION}-{YYYYMMDD}.apk
-   ```
-
-4. **Create README.md** in the version folder with:
-   - New features
-   - Bug fixes
-   - Technical details
-   - Installation instructions
-
-5. **Update this file** to add the new version to the table
+4. **Update this file** with new version info
 
 ## Installation
 
-To install on an Android device:
-
-1. Enable "Install from unknown sources" in device settings
-2. Transfer the APK to the device
-3. Open the APK file to install
-
-Or use ADB:
 ```bash
-adb install app-builds/v1.0.0/food-finder-v1.0.0-20260119.apk
+adb install app-builds/latest-release/food-finder-v1.0.0-20260119.apk
 ```
+
+Or transfer APK to device and install manually.

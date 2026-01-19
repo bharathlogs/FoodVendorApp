@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/vendor_profile.dart';
@@ -199,15 +200,21 @@ class _VendorListScreenState extends ConsumerState<VendorListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _vendors.length + (_hasMore ? 1 : 0),
+        // Virtualization optimizations
+        cacheExtent: 500, // Pre-render items 500px ahead for smoother scrolling
+        addAutomaticKeepAlives: false, // Don't keep off-screen items alive
+        addRepaintBoundaries: true, // Isolate item repaints (default, explicit for clarity)
         itemBuilder: (context, index) {
           if (index == _vendors.length) {
             return _buildLoadingIndicator();
           }
 
           final vendor = _vendors[index];
-          return AnimatedListItem(
-            index: index,
-            child: _buildVendorCard(context, vendor),
+          return RepaintBoundary(
+            child: AnimatedListItem(
+              index: index,
+              child: _buildVendorCard(context, vendor),
+            ),
           );
         },
       ),
@@ -518,6 +525,7 @@ class _FavoriteButton extends ConsumerWidget {
           );
           return;
         }
+        HapticFeedback.mediumImpact();
         ref.read(favoritesNotifierProvider.notifier).toggleFavorite(vendorId);
       },
       icon: Icon(

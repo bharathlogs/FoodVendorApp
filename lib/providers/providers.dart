@@ -198,12 +198,27 @@ class FavoritesNotifier extends Notifier<AsyncValue<void>> {
         await dbService.removeFavorite(user.uid, vendorId);
       } else {
         await dbService.addFavorite(user.uid, vendorId);
+        // Pre-fetch menu for offline access when adding to favorites
+        _preFetchMenuForOffline(vendorId);
       }
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
+  }
+
+  /// Pre-fetch menu items for a vendor to cache them for offline access
+  /// This runs in the background and doesn't block the favorites operation
+  void _preFetchMenuForOffline(String vendorId) {
+    final dbService = ref.read(databaseServiceProvider);
+    // Subscribe to the menu stream once to trigger Firestore to cache the data
+    // The subscription is automatically cleaned up after first emission
+    dbService.getMenuItemsStream(vendorId).first.then((_) {
+      debugPrint('Pre-fetched menu for vendor $vendorId for offline access');
+    }).catchError((e) {
+      debugPrint('Failed to pre-fetch menu for vendor $vendorId: $e');
+    });
   }
 
   Future<void> addFavorite(String vendorId) async {
@@ -217,6 +232,8 @@ class FavoritesNotifier extends Notifier<AsyncValue<void>> {
     try {
       final dbService = ref.read(databaseServiceProvider);
       await dbService.addFavorite(user.uid, vendorId);
+      // Pre-fetch menu for offline access
+      _preFetchMenuForOffline(vendorId);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -378,20 +395,103 @@ final userReviewProvider =
   return dbService.getUserReviewForVendorStream(vendorId, user.uid);
 });
 
-/// Notifier for managing review actions
+/// Notifier for managing review actions with rate limiting
 class ReviewNotifier extends Notifier<AsyncValue<void>> {
+  static const String _reviewTimestampsKey = 'review_timestamps';
+  static const int _maxReviewsPerHour = 5;
+  static const Duration _rateLimitWindow = Duration(hours: 1);
+
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
+
+  /// Check if user can submit a review (client-side rate limiting)
+  Future<bool> canSubmitReview() async {
+    final timestamps = await _getReviewTimestamps();
+    final now = DateTime.now();
+    final windowStart = now.subtract(_rateLimitWindow);
+
+    // Count reviews within the rate limit window
+    final recentReviews =
+        timestamps.where((t) => t.isAfter(windowStart)).length;
+
+    return recentReviews < _maxReviewsPerHour;
+  }
+
+  /// Get remaining cooldown time if rate limited
+  Future<Duration?> getRateLimitCooldown() async {
+    final timestamps = await _getReviewTimestamps();
+    if (timestamps.length < _maxReviewsPerHour) return null;
+
+    final now = DateTime.now();
+    final windowStart = now.subtract(_rateLimitWindow);
+
+    // Get timestamps within window, sorted oldest first
+    final recentTimestamps = timestamps
+        .where((t) => t.isAfter(windowStart))
+        .toList()
+      ..sort();
+
+    if (recentTimestamps.length < _maxReviewsPerHour) return null;
+
+    // Calculate when the oldest review in window will expire
+    final oldestInWindow = recentTimestamps.first;
+    final expiresAt = oldestInWindow.add(_rateLimitWindow);
+
+    if (expiresAt.isAfter(now)) {
+      return expiresAt.difference(now);
+    }
+
+    return null;
+  }
+
+  Future<List<DateTime>> _getReviewTimestamps() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final timestampsJson = prefs.getStringList(_reviewTimestampsKey) ?? [];
+    return timestampsJson
+        .map((s) => DateTime.tryParse(s))
+        .whereType<DateTime>()
+        .toList();
+  }
+
+  Future<void> _recordReviewTimestamp() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final timestamps = await _getReviewTimestamps();
+    final now = DateTime.now();
+    final windowStart = now.subtract(_rateLimitWindow);
+
+    // Keep only recent timestamps + new one
+    final updatedTimestamps = [
+      ...timestamps.where((t) => t.isAfter(windowStart)),
+      now,
+    ];
+
+    await prefs.setStringList(
+      _reviewTimestampsKey,
+      updatedTimestamps.map((t) => t.toIso8601String()).toList(),
+    );
+  }
 
   Future<bool> submitReview({
     required String vendorId,
     required Review review,
   }) async {
+    // Check rate limit before submitting
+    if (!await canSubmitReview()) {
+      final cooldown = await getRateLimitCooldown();
+      final minutes = cooldown?.inMinutes ?? 0;
+      state = AsyncValue.error(
+        'Rate limit exceeded. Please wait $minutes minutes before submitting another review.',
+        StackTrace.current,
+      );
+      return false;
+    }
+
     state = const AsyncValue.loading();
 
     try {
       final dbService = ref.read(databaseServiceProvider);
       await dbService.addReview(vendorId, review);
+      await _recordReviewTimestamp();
       state = const AsyncValue.data(null);
       return true;
     } catch (e, st) {
@@ -405,6 +505,7 @@ class ReviewNotifier extends Notifier<AsyncValue<void>> {
     required String reviewId,
     required Review review,
   }) async {
+    // Updates don't count toward rate limit (editing existing review)
     state = const AsyncValue.loading();
 
     try {

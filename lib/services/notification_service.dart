@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'analytics_service.dart';
+import 'database_service.dart';
 
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -17,9 +19,12 @@ class NotificationService {
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final _analytics = AnalyticsService();
+  final _databaseService = DatabaseService();
 
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
+
+  String? _currentUserId;
 
   final _tokenController = StreamController<String>.broadcast();
   Stream<String> get onTokenRefresh => _tokenController.stream;
@@ -50,11 +55,22 @@ class NotificationService {
     _fcmToken = await _messaging.getToken();
     debugPrint('FCM Token: $_fcmToken');
 
-    // Listen for token refresh
-    _messaging.onTokenRefresh.listen((token) {
+    // Listen for token refresh and persist to Firestore
+    _messaging.onTokenRefresh.listen((token) async {
+      final oldToken = _fcmToken;
       _fcmToken = token;
       _tokenController.add(token);
       debugPrint('FCM Token refreshed: $token');
+
+      // Update token in Firestore if user is logged in
+      if (_currentUserId != null) {
+        // Remove old token if exists
+        if (oldToken != null && oldToken != token) {
+          await _databaseService.removeFcmToken(_currentUserId!, oldToken);
+        }
+        // Store new token
+        await _persistToken(_currentUserId!, token);
+      }
     });
 
     // Handle foreground messages
@@ -67,6 +83,39 @@ class NotificationService {
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationTap(initialMessage);
+    }
+  }
+
+  /// Set the current user ID and persist FCM token to Firestore
+  /// Call this after user login
+  Future<void> setUserId(String userId) async {
+    _currentUserId = userId;
+    if (_fcmToken != null) {
+      await _persistToken(userId, _fcmToken!);
+    }
+  }
+
+  /// Clear the current user ID and optionally remove token
+  /// Call this on user logout
+  Future<void> clearUserId({bool removeToken = true}) async {
+    if (removeToken && _currentUserId != null && _fcmToken != null) {
+      await _databaseService.removeFcmToken(_currentUserId!, _fcmToken!);
+    }
+    _currentUserId = null;
+  }
+
+  /// Persist FCM token to Firestore for push notification targeting
+  Future<void> _persistToken(String userId, String token) async {
+    try {
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      await _databaseService.storeFcmToken(
+        userId: userId,
+        token: token,
+        platform: platform,
+      );
+      debugPrint('FCM token persisted to Firestore for user: $userId');
+    } catch (e) {
+      debugPrint('Failed to persist FCM token: $e');
     }
   }
 
@@ -144,6 +193,94 @@ class NotificationService {
   /// Unsubscribe from vendor updates
   Future<void> unsubscribeFromVendorUpdates(String vendorId) async {
     await unsubscribeFromTopic('vendor_updates_$vendorId');
+  }
+
+  // ============ CUISINE-BASED SEGMENTATION ============
+
+  /// Subscribe to cuisine-based notifications
+  Future<void> subscribeToCuisine(String cuisine) async {
+    final topic = 'cuisine_${cuisine.toLowerCase().replaceAll(' ', '_')}';
+    await subscribeToTopic(topic);
+  }
+
+  /// Unsubscribe from cuisine-based notifications
+  Future<void> unsubscribeFromCuisine(String cuisine) async {
+    final topic = 'cuisine_${cuisine.toLowerCase().replaceAll(' ', '_')}';
+    await unsubscribeFromTopic(topic);
+  }
+
+  /// Update cuisine subscriptions based on user preferences
+  /// Unsubscribes from old cuisines and subscribes to new ones
+  Future<void> updateCuisineSubscriptions({
+    required List<String> oldCuisines,
+    required List<String> newCuisines,
+  }) async {
+    // Unsubscribe from cuisines no longer in preferences
+    for (final cuisine in oldCuisines) {
+      if (!newCuisines.contains(cuisine)) {
+        await unsubscribeFromCuisine(cuisine);
+      }
+    }
+
+    // Subscribe to new cuisines
+    for (final cuisine in newCuisines) {
+      if (!oldCuisines.contains(cuisine)) {
+        await subscribeToCuisine(cuisine);
+      }
+    }
+  }
+
+  // ============ SEGMENT TOPICS ============
+
+  /// Subscribe to promotional notifications
+  Future<void> subscribeToPromotions() async {
+    await subscribeToTopic('promotions');
+  }
+
+  /// Unsubscribe from promotional notifications
+  Future<void> unsubscribeFromPromotions() async {
+    await unsubscribeFromTopic('promotions');
+  }
+
+  /// Subscribe to new vendor announcements
+  Future<void> subscribeToNewVendors() async {
+    await subscribeToTopic('new_vendors');
+  }
+
+  /// Unsubscribe from new vendor announcements
+  Future<void> unsubscribeFromNewVendors() async {
+    await unsubscribeFromTopic('new_vendors');
+  }
+
+  /// Update all notification subscriptions based on user preferences
+  Future<void> syncSubscriptionsWithPreferences({
+    required bool orderUpdates,
+    required bool promotions,
+    required bool newVendors,
+    required List<String> favoriteCuisines,
+    List<String>? previousCuisines,
+  }) async {
+    // Promotions
+    if (promotions) {
+      await subscribeToPromotions();
+    } else {
+      await unsubscribeFromPromotions();
+    }
+
+    // New vendors
+    if (newVendors) {
+      await subscribeToNewVendors();
+    } else {
+      await unsubscribeFromNewVendors();
+    }
+
+    // Cuisine topics
+    await updateCuisineSubscriptions(
+      oldCuisines: previousCuisines ?? [],
+      newCuisines: favoriteCuisines,
+    );
+
+    debugPrint('Notification subscriptions synced with preferences');
   }
 
   void dispose() {

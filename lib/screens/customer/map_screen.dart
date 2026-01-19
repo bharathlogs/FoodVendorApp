@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../models/vendor_profile.dart';
@@ -7,6 +8,7 @@ import '../../services/customer_location_service.dart';
 import '../../utils/cuisine_categories.dart';
 import '../../widgets/customer/vendor_bottom_sheet.dart';
 import '../../widgets/customer/animated_vendor_marker.dart';
+import '../../widgets/common/shimmer_loading.dart';
 import 'vendor_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -108,6 +110,11 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
+  Future<void> _handleRefresh() async {
+    HapticFeedback.mediumImpact();
+    await _initCustomerLocation();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -164,11 +171,32 @@ class _MapScreenState extends State<MapScreen>
         ],
       ),
 
-      // Center on me button
-      floatingActionButton: FloatingActionButton(
-        onPressed: _centerOnCustomer,
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.my_location, color: Colors.blue),
+      // FAB buttons
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Refresh button
+          FloatingActionButton.small(
+            heroTag: 'refresh',
+            onPressed: _isLoadingLocation ? null : _handleRefresh,
+            backgroundColor: Colors.white,
+            child: _isLoadingLocation
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh, color: Colors.orange),
+          ),
+          const SizedBox(height: 8),
+          // Center on me button
+          FloatingActionButton(
+            heroTag: 'center',
+            onPressed: _centerOnCustomer,
+            backgroundColor: Colors.white,
+            child: const Icon(Icons.my_location, color: Colors.blue),
+          ),
+        ],
       ),
     );
   }
@@ -232,7 +260,7 @@ class _MapScreenState extends State<MapScreen>
       stream: _databaseService.getActiveVendorsWithFreshnessCheck(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const MarkerLayer(markers: []);
+          return _buildSkeletonMarkers();
         }
 
         List<VendorProfile> vendors = snapshot.data!;
@@ -375,6 +403,29 @@ class _MapScreenState extends State<MapScreen>
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSkeletonMarkers() {
+    // Show shimmer markers at pseudo-random positions around customer location or default
+    final center = _customerLocation ?? _defaultCenter;
+    final skeletonPositions = [
+      LatLng(center.latitude + 0.005, center.longitude + 0.003),
+      LatLng(center.latitude - 0.004, center.longitude + 0.006),
+      LatLng(center.latitude + 0.002, center.longitude - 0.005),
+      LatLng(center.latitude - 0.006, center.longitude - 0.002),
+      LatLng(center.latitude + 0.007, center.longitude + 0.001),
+    ];
+
+    return MarkerLayer(
+      markers: skeletonPositions.map((position) {
+        return Marker(
+          point: position,
+          width: 50,
+          height: 50,
+          child: const ShimmerMarker(size: 50),
+        );
+      }).toList(),
     );
   }
 

@@ -48,6 +48,10 @@ dependencies:
   # Image Picker & Caching
   image_picker: ^1.1.2
   cached_network_image: ^3.3.0
+  flutter_image_compress: ^2.1.0
+
+  # Path Provider (for temp file access)
+  path_provider: ^2.1.2
 
   # Location & Permissions
   geolocator: ^13.0.2
@@ -80,6 +84,8 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

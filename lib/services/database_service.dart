@@ -189,7 +189,8 @@ class DatabaseService {
     );
   }
 
-  /// Fetch paginated vendors with flexible search
+  /// Fetch paginated vendors with server-side search
+  /// Uses parallel queries for business name prefix and cuisine tag matching
   Future<PaginatedResult<VendorProfile>> searchVendorsPaginated({
     required String query,
     DocumentSnapshot? startAfter,
@@ -199,14 +200,38 @@ class DatabaseService {
       return getActiveVendorsPaginated(startAfter: startAfter, limit: limit);
     }
 
-    // For search, we fetch more and filter client-side
-    final result = await getActiveVendorsPaginated(
-      startAfter: startAfter,
-      limit: limit * 3, // Fetch more to account for filtering
-    );
+    final searchTrimmed = query.trim();
+    final searchLower = searchTrimmed.toLowerCase();
+    final cutoffTime = DateTime.now().subtract(const Duration(minutes: 10));
 
-    final searchLower = query.toLowerCase().trim();
-    final filtered = result.items.where((vendor) {
+    // Run parallel server-side queries
+    final futures = await Future.wait([
+      // Query 1: Business name prefix match (case-sensitive for Firestore)
+      _searchByBusinessNamePrefix(searchTrimmed, limit, startAfter),
+      // Query 2: Cuisine tag exact match using arrayContains
+      _searchByCuisineTag(searchTrimmed, limit, startAfter),
+    ]);
+
+    // Merge and deduplicate results
+    final seenIds = <String>{};
+    final allVendors = <VendorProfile>[];
+
+    for (final vendors in futures) {
+      for (final vendor in vendors) {
+        if (!seenIds.contains(vendor.vendorId)) {
+          seenIds.add(vendor.vendorId);
+          // Apply freshness filter
+          if (vendor.locationUpdatedAt != null &&
+              vendor.locationUpdatedAt!.isAfter(cutoffTime)) {
+            allVendors.add(vendor);
+          }
+        }
+      }
+    }
+
+    // Secondary client-side filter for case-insensitive substring matching
+    // This catches results the server-side queries might miss
+    final filtered = allVendors.where((vendor) {
       if (vendor.businessName.toLowerCase().contains(searchLower)) {
         return true;
       }
@@ -219,9 +244,57 @@ class DatabaseService {
 
     return PaginatedResult(
       items: filtered,
-      lastDocument: result.lastDocument,
-      hasMore: result.hasMore || filtered.length == limit,
+      lastDocument: null, // Parallel queries don't support cursor pagination
+      hasMore: filtered.length >= limit,
     );
+  }
+
+  /// Server-side search by business name prefix
+  Future<List<VendorProfile>> _searchByBusinessNamePrefix(
+    String query,
+    int limit,
+    DocumentSnapshot? startAfter,
+  ) async {
+    final endQuery = '$query\uf8ff';
+
+    Query searchQuery = _firestore
+        .collection('vendor_profiles')
+        .where('isActive', isEqualTo: true)
+        .where('businessName', isGreaterThanOrEqualTo: query)
+        .where('businessName', isLessThan: endQuery)
+        .limit(limit);
+
+    if (startAfter != null) {
+      searchQuery = searchQuery.startAfterDocument(startAfter);
+    }
+
+    final snapshot = await searchQuery.get();
+    return snapshot.docs
+        .map((doc) => VendorProfile.fromFirestore(doc))
+        .toList();
+  }
+
+  /// Server-side search by cuisine tag using arrayContains
+  Future<List<VendorProfile>> _searchByCuisineTag(
+    String tag,
+    int limit,
+    DocumentSnapshot? startAfter,
+  ) async {
+    // Try exact match first (common cuisine tags)
+    Query searchQuery = _firestore
+        .collection('vendor_profiles')
+        .where('isActive', isEqualTo: true)
+        .where('cuisineTags', arrayContains: tag)
+        .limit(limit);
+
+    if (startAfter != null) {
+      searchQuery = searchQuery.startAfterDocument(startAfter);
+    }
+
+    final snapshot = await searchQuery.get();
+    return snapshot.docs
+        .map((doc) => VendorProfile.fromFirestore(doc))
+        .toList();
   }
 
   // ============ GEOHASH-BASED QUERIES ============
@@ -724,6 +797,89 @@ class DatabaseService {
       'averageRating': averageRating,
       'totalRatings': totalRatings,
     });
+  }
+
+  // ============ FCM TOKEN STORAGE ============
+
+  /// Store or update FCM token for a user (for push notification targeting)
+  Future<void> storeFcmToken({
+    required String userId,
+    required String token,
+    required String platform,
+    String? deviceModel,
+  }) async {
+    final tokenDoc = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('fcm_tokens')
+        .doc(token);
+
+    await tokenDoc.set({
+      'token': token,
+      'platform': platform,
+      'deviceModel': deviceModel,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Remove FCM token when user logs out or token is invalidated
+  Future<void> removeFcmToken(String userId, String token) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('fcm_tokens')
+        .doc(token)
+        .delete();
+  }
+
+  /// Remove all FCM tokens for a user (on logout from all devices)
+  Future<void> removeAllFcmTokens(String userId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('fcm_tokens')
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  /// Get all FCM tokens for a user (for multi-device notifications)
+  Future<List<String>> getUserFcmTokens(String userId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('fcm_tokens')
+        .get();
+
+    return snapshot.docs.map((doc) => doc['token'] as String).toList();
+  }
+
+  /// Update user's notification preferences
+  Future<void> updateNotificationPreferences(
+    String userId,
+    Map<String, dynamic> preferences,
+  ) async {
+    await _firestore.collection('users').doc(userId).update({
+      'notificationPreferences': preferences,
+    });
+  }
+
+  /// Subscribe user to cuisine-based notification topics
+  Future<List<String>> getCuisineTopicsForUser(String userId) async {
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    if (!userDoc.exists) return [];
+
+    final data = userDoc.data();
+    final prefs = data?['notificationPreferences'] as Map<String, dynamic>?;
+    if (prefs == null) return [];
+
+    final cuisines = List<String>.from(prefs['favoriteCuisines'] ?? []);
+    return cuisines.map((c) => 'cuisine_${c.toLowerCase()}').toList();
   }
 
   // ============ UTILITY METHODS ============

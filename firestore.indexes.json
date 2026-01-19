@@ -21,6 +21,14 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "businessName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vendor_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "locationUpdatedAt", "order": "DESCENDING" }
       ]
     },
@@ -30,6 +38,14 @@
       "fields": [
         { "fieldPath": "customerId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vendor_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "geohash", "order": "ASCENDING" }
       ]
     }
   ],

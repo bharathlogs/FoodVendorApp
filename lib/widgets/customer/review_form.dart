@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import '../../models/review.dart';
 import '../common/star_rating.dart';
@@ -58,6 +59,7 @@ class _ReviewFormState extends State<ReviewForm> {
       return;
     }
 
+    HapticFeedback.mediumImpact();
     setState(() => _isSubmitting = true);
 
     final review = Review(
@@ -116,6 +118,7 @@ class _ReviewFormState extends State<ReviewForm> {
               rating: _rating.toDouble(),
               size: 40,
               onRatingChanged: (rating) {
+                HapticFeedback.selectionClick();
                 setState(() => _rating = rating);
               },
             ),

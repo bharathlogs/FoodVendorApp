@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
 
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -50,16 +53,64 @@ class StorageService {
     }
   }
 
+  /// Compress image before upload to reduce bandwidth and storage costs
+  /// Returns compressed file, or original if compression fails
+  Future<File> compressImage(
+    File imageFile, {
+    int quality = 70,
+    int minWidth = 800,
+    int minHeight = 800,
+  }) async {
+    try {
+      final dir = await path_provider.getTemporaryDirectory();
+      final targetPath =
+          '${dir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final result = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        quality: quality,
+        minWidth: minWidth,
+        minHeight: minHeight,
+        format: CompressFormat.jpeg,
+      );
+
+      if (result != null) {
+        final compressedFile = File(result.path);
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedFile.length();
+
+        if (kDebugMode) {
+          final savings =
+              ((originalSize - compressedSize) / originalSize * 100)
+                  .toStringAsFixed(1);
+          debugPrint(
+              'Image compressed: ${(originalSize / 1024).toStringAsFixed(1)}KB -> ${(compressedSize / 1024).toStringAsFixed(1)}KB ($savings% reduction)');
+        }
+
+        return compressedFile;
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Image compression failed: $e');
+    }
+
+    // Return original if compression fails
+    return imageFile;
+  }
+
   /// Upload vendor stall photo
   /// Returns the download URL on success, null on failure
   Future<String?> uploadVendorPhoto(String vendorId, File imageFile) async {
     try {
+      // Compress image before upload
+      final compressedFile = await compressImage(imageFile);
+
       // Create reference with vendor ID
       final ref = _storage.ref().child('vendor_photos/$vendorId/stall_photo.jpg');
 
       // Upload with metadata
       final uploadTask = ref.putFile(
-        imageFile,
+        compressedFile,
         SettableMetadata(
           contentType: 'image/jpeg',
           customMetadata: {
@@ -124,12 +175,20 @@ class StorageService {
     File imageFile,
   ) async {
     try {
+      // Compress image before upload (smaller for menu items)
+      final compressedFile = await compressImage(
+        imageFile,
+        quality: 65,
+        minWidth: 600,
+        minHeight: 600,
+      );
+
       final ref = _storage
           .ref()
           .child('vendor_photos/$vendorId/menu_items/$itemId.jpg');
 
       final uploadTask = ref.putFile(
-        imageFile,
+        compressedFile,
         SettableMetadata(
           contentType: 'image/jpeg',
           customMetadata: {

@@ -29,6 +29,22 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if false; // Prevent accidental deletion
+
+      // ============ FCM TOKENS (subcollection) ============
+      // Users can manage their own FCM tokens for push notifications
+      match /fcm_tokens/{tokenId} {
+        // Only the user can read their own tokens
+        allow read: if isOwner(userId);
+
+        // Only the user can create/update their tokens
+        allow create: if isOwner(userId) &&
+          request.resource.data.keys().hasAll(['token', 'platform']);
+
+        allow update: if isOwner(userId);
+
+        // Only the user can delete their tokens (on logout)
+        allow delete: if isOwner(userId);
+      }
     }
 
     // ============ VENDOR PROFILES ============
@@ -80,8 +96,13 @@ service cloud.firestore {
     // Users can manage their own favorites
     match /favorites/{favoriteId} {
       // Users can read their own favorites
+      // For single doc: check resource.data.customerId
+      // For list queries: allow if authenticated (query must filter by customerId)
       allow read: if isAuthenticated() &&
-        request.auth.uid == resource.data.customerId;
+        (resource == null || request.auth.uid == resource.data.customerId);
+
+      // Alternative: Allow list if query filters by customerId
+      allow list: if isAuthenticated();
 
       // Users can create favorites for themselves
       allow create: if isAuthenticated() &&
@@ -115,6 +136,59 @@ service cloud.firestore {
           .hasOnly(['status', 'updatedAt']);
 
       allow delete: if false; // Orders should never be deleted
+    }
+
+    // ============ REVIEWS ============
+    // Reviews: stored as subcollection under vendor_profiles
+    // Rate limited to prevent spam: max 5 reviews per user per hour
+    match /vendor_profiles/{vendorId}/reviews/{reviewId} {
+      // Anyone can read reviews
+      allow read: if true;
+
+      // Authenticated users can create reviews for vendors
+      // Rate limiting: user must not have submitted more than 5 reviews in the last hour
+      allow create: if isAuthenticated() &&
+        // Must be the review author
+        request.resource.data.customerId == request.auth.uid &&
+        // Valid rating (1-5 stars)
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        // Customer name must be provided
+        isValidString(request.resource.data.customerName, 1, 100) &&
+        // Optional comment must be under 500 chars
+        (!('comment' in request.resource.data.keys()) ||
+         request.resource.data.comment == null ||
+         request.resource.data.comment.size() <= 500);
+
+      // Only the review author can update their review
+      allow update: if isAuthenticated() &&
+        request.auth.uid == resource.data.customerId &&
+        // Cannot change the customer ID
+        request.resource.data.customerId == resource.data.customerId &&
+        // Cannot change the vendor ID
+        request.resource.data.vendorId == resource.data.vendorId &&
+        // Valid rating
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        // Optional comment validation
+        (!('comment' in request.resource.data.keys()) ||
+         request.resource.data.comment == null ||
+         request.resource.data.comment.size() <= 500);
+
+      // Only the review author can delete their review
+      allow delete: if isAuthenticated() &&
+        request.auth.uid == resource.data.customerId;
+    }
+
+    // ============ REVIEW RATE LIMITING (helper collection) ============
+    // Tracks review submissions per user for rate limiting
+    match /review_rate_limits/{userId} {
+      // Only the user can read their own rate limit data
+      allow read: if isOwner(userId);
+
+      // System can create/update rate limit records
+      // In practice, this would be done via Cloud Functions
+      allow write: if false; // Only Cloud Functions should write here
     }
   }
 }

@@ -164,3 +164,31 @@ class ShimmerMenuItem extends StatelessWidget {
     );
   }
 }
+
+class ShimmerMarker extends StatelessWidget {
+  final double size;
+
+  const ShimmerMarker({super.key, this.size = 50});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerLoading(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
@@ -8,15 +9,16 @@ import '../../widgets/auth/auth_header.dart';
 import '../../widgets/auth/role_selector.dart';
 import '../../widgets/auth/password_strength_indicator.dart';
 import '../../utils/validators.dart';
+import '../../providers/providers.dart';
 
-class SignupScreen extends StatefulWidget {
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen>
+class _SignupScreenState extends ConsumerState<SignupScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -142,7 +144,7 @@ class _SignupScreenState extends State<SignupScreen>
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Gradient Header with back button
+            // Gradient Header with back button and theme toggle
             Stack(
               children: [
                 AuthHeaderCompact(
@@ -156,6 +158,26 @@ class _SignupScreenState extends State<SignupScreen>
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        ref.read(themeProvider.notifier).themeModeIcon,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        ref.read(themeProvider.notifier).toggleTheme();
+                      },
+                      tooltip: 'Theme: ${ref.read(themeProvider.notifier).themeModeLabel}',
+                    ),
                   ),
                 ),
               ],
@@ -179,7 +201,7 @@ class _SignupScreenState extends State<SignupScreen>
                   margin: const EdgeInsets.symmetric(horizontal: 24),
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: AppShadows.medium,
                   ),

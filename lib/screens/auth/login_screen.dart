@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
@@ -8,16 +9,17 @@ import '../../widgets/auth/auth_header.dart';
 import '../../utils/validators.dart';
 import '../../core/navigation/app_page_route.dart';
 import '../../core/navigation/app_transitions.dart';
+import '../../providers/providers.dart';
 import 'signup_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
+class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -145,12 +147,16 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final themeNotifier = ref.read(themeProvider.notifier);
+
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Gradient Header
-            AuthHeader(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // Gradient Header
+                AuthHeader(
               title: 'Welcome Back',
               subtitle: 'Sign in to continue',
               logo: Container(
@@ -202,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen>
                   margin: const EdgeInsets.symmetric(horizontal: 24),
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: AppShadows.medium,
                   ),
@@ -348,8 +354,38 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+          // Theme Toggle Button
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(
+                  themeNotifier.themeModeIcon,
+                  color: AppColors.primary,
+                ),
+                onPressed: () {
+                  ref.read(themeProvider.notifier).toggleTheme();
+                },
+                tooltip: 'Theme: ${themeNotifier.themeModeLabel}',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

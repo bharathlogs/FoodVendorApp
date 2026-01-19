@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/app_button.dart';
@@ -6,17 +7,18 @@ import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../services/location_manager.dart';
 import '../../models/vendor_profile.dart';
+import '../../providers/providers.dart';
 import 'menu_management_screen.dart';
 import 'cuisine_selection_screen.dart';
 
-class VendorHome extends StatefulWidget {
+class VendorHome extends ConsumerStatefulWidget {
   const VendorHome({super.key});
 
   @override
-  State<VendorHome> createState() => _VendorHomeState();
+  ConsumerState<VendorHome> createState() => _VendorHomeState();
 }
 
-class _VendorHomeState extends State<VendorHome> with TickerProviderStateMixin {
+class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final DatabaseService _databaseService = DatabaseService();
   final LocationManager _locationManager = LocationManager();
@@ -209,55 +211,80 @@ class _VendorHomeState extends State<VendorHome> with TickerProviderStateMixin {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          itemBuilder: (context) => [
-            PopupMenuItem<String>(
-              enabled: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _authService.currentUser?.email ?? 'Vendor',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Vendor',
+          itemBuilder: (context) {
+            final themeNotifier = ref.read(themeProvider.notifier);
+            return [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _authService.currentUser?.email ?? 'Vendor',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Vendor',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem<String>(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout, color: Colors.red, size: 20),
-                  SizedBox(width: 12),
-                  Text('Logout', style: TextStyle(color: Colors.red)),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(
+                      themeNotifier.themeModeIcon,
+                      color: Theme.of(context).iconTheme.color,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Theme: ${themeNotifier.themeModeLabel}',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red, size: 20),
+                    SizedBox(width: 12),
+                    Text('Logout', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ];
+          },
           onSelected: (value) async {
-            if (value == 'logout') {
+            if (value == 'theme') {
+              await ref.read(themeProvider.notifier).toggleTheme();
+            } else if (value == 'logout') {
               if (_locationManager.isActive) {
                 await _locationManager.stopBroadcasting();
               }

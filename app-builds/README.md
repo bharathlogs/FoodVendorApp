@@ -8,7 +8,7 @@ This folder contains release builds of the Food Finder app.
 app-builds/
 ├── README.md              (this file)
 ├── latest-release/        (contains the latest APK)
-│   └── food-finder-v1.0.0-20260119.apk
+│   └── food-finder-v1.1.0-20260119.apk
 ├── v1.0.0/
 │   └── README.md          (release notes, features, bug fixes)
 ├── v1.1.0/
@@ -18,16 +18,17 @@ app-builds/
 
 ## Latest Release
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Date:** January 19, 2026
-**File:** [latest-release/food-finder-v1.0.0-20260119.apk](latest-release/)
+**File:** [latest-release/food-finder-v1.1.0-20260119.apk](latest-release/)
 
-See [v1.0.0/README.md](v1.0.0/README.md) for release notes.
+See [v1.1.0/README.md](v1.1.0/README.md) for release notes.
 
 ## All Versions
 
 | Version | Date | Release Notes |
 |---------|------|---------------|
+| [v1.1.0](v1.1.0/) | Jan 19, 2026 | Theme toggle (Light/Dark mode), dark mode text fixes |
 | [v1.0.0](v1.0.0/) | Jan 19, 2026 | Riverpod, favorites, offline sync, profile menu |
 
 ## Naming Convention
@@ -61,7 +62,7 @@ See [v1.0.0/README.md](v1.0.0/README.md) for release notes.
 ## Installation
 
 ```bash
-adb install app-builds/latest-release/food-finder-v1.0.0-20260119.apk
+adb install app-builds/latest-release/food-finder-v1.1.0-20260119.apk
 ```
 
 Or transfer APK to device and install manually.

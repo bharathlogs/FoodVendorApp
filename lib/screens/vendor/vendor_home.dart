@@ -199,15 +199,72 @@ class _VendorHomeState extends State<VendorHome> with TickerProviderStateMixin {
           },
         ),
         const SizedBox(width: 8),
-        IconActionButton(
-          icon: Icons.logout,
-          onPressed: () async {
-            if (_locationManager.isActive) {
-              await _locationManager.stopBroadcasting();
-            }
-            await _authService.signOut();
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/login');
+        PopupMenuButton<String>(
+          icon: const CircleAvatar(
+            radius: 16,
+            backgroundColor: AppColors.primary,
+            child: Icon(Icons.person, color: Colors.white, size: 20),
+          ),
+          offset: const Offset(0, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _authService.currentUser?.email ?? 'Vendor',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Vendor',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout, color: Colors.red, size: 20),
+                  SizedBox(width: 12),
+                  Text('Logout', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
+          onSelected: (value) async {
+            if (value == 'logout') {
+              if (_locationManager.isActive) {
+                await _locationManager.stopBroadcasting();
+              }
+              await _authService.signOut();
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
             }
           },
         ),

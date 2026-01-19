@@ -154,33 +154,38 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Opacity(
                         opacity: _logoOpacity.value,
                         child: Container(
-                          width: 120,
-                          height: 120,
+                          width: 160,
+                          height: 160,
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(36),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
+                                color: Colors.black.withValues(alpha: 0.3),
                                 blurRadius: 30,
                                 offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Image.asset(
-                              'assets/icon/app_icon.png',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                // Fallback icon if image not found
-                                return const Icon(
-                                  Icons.restaurant,
-                                  size: 60,
-                                  color: AppColors.primary,
-                                );
-                              },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(36),
+                            child: Transform.scale(
+                              scale: 1.25,
+                              child: Image.asset(
+                                'assets/icon/app_icon.png',
+                                width: 160,
+                                height: 160,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: AppColors.primary,
+                                    child: const Icon(
+                                      Icons.restaurant,
+                                      size: 80,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),

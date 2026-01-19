@@ -344,12 +344,16 @@ void main() async {
 | `lib/models/favorite.dart` | Created | Favorite data model |
 | `lib/services/database_service.dart` | Modified | Added favorites CRUD operations |
 | `lib/screens/customer/favorites_screen.dart` | Created | Favorites list UI |
-| `lib/screens/customer/customer_home.dart` | Modified | Added Favorites tab, migrated to ConsumerStatefulWidget |
+| `lib/screens/customer/customer_home.dart` | Modified | Added Favorites tab, profile menu with logout, migrated to ConsumerStatefulWidget |
 | `lib/screens/customer/vendor_list_screen.dart` | Modified | Added favorite button, migrated to ConsumerStatefulWidget |
+| `lib/screens/vendor/vendor_home.dart` | Modified | Added profile menu with logout replacing direct logout button |
 | `lib/screens/auth/login_screen.dart` | Modified | Enhanced error message handling |
+| `lib/screens/splash/splash_screen.dart` | Modified | Fixed icon scaling (1.25x zoom) to crop transparent borders |
 | `lib/main.dart` | Modified | Added ProviderScope, offline persistence, migrated to ConsumerWidget |
 | `firestore.indexes.json` | Modified | Added vendor_profiles and favorites composite indexes |
+| `firestore.rules` | Modified | Added security rules for `favorites` collection |
 | `firebase.json` | Modified | Added Firestore configuration for index deployment |
+| `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | Modified | Removed 16% inset from adaptive icon foreground |
 
 ## Architecture Changes
 
@@ -431,6 +435,100 @@ flutter_launcher_icons:
   min_sdk_android: 21
   adaptive_icon_background: "#FF6B35"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
+```
+
+### 4. Favorites Security Rules Missing
+**Issue:** Favorites tab showing "Error loading favorites" - users couldn't fetch their favorites.
+
+**Root Cause:** The `favorites` collection was missing from Firestore security rules. Without explicit rules, Firestore denies all access by default.
+
+**Fix:** Added security rules for favorites collection in `firestore.rules`:
+```javascript
+// ============ FAVORITES ============
+match /favorites/{favoriteId} {
+  allow read: if isAuthenticated() &&
+    request.auth.uid == resource.data.customerId;
+  allow create: if isAuthenticated() &&
+    request.auth.uid == request.resource.data.customerId;
+  allow delete: if isAuthenticated() &&
+    request.auth.uid == resource.data.customerId;
+  allow update: if false;
+}
+```
+
+### 5. Splash Screen Icon Zoomed Out
+**Issue:** App icon on splash screen appeared too small with visible transparent borders around the icon.
+
+**Root Cause:** The icon PNG has transparent rounded corners, which were visible against the orange gradient background.
+
+**Fix:** Applied zoom/scale transformation in `splash_screen.dart`:
+```dart
+ClipRRect(
+  borderRadius: BorderRadius.circular(36),
+  child: Transform.scale(
+    scale: 1.25,  // Zoom in to crop transparent edges
+    child: Image.asset(
+      'assets/icon/app_icon.png',
+      width: 160,
+      height: 160,
+      fit: BoxFit.cover,
+    ),
+  ),
+)
+```
+
+### 6. Adaptive Icon Inset Too Large
+**Issue:** App launcher icon appearing smaller than expected on Android home screen.
+
+**Root Cause:** The `ic_launcher.xml` had a 16% inset applied to the foreground, making the icon appear zoomed out.
+
+**Fix:** Removed the inset from `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`:
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/ic_launcher_background"/>
+  <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>
+```
+
+### 7. Profile Menu with Logout
+**Issue:** Logout button was exposed directly in app bar without user context (no email or role display).
+
+**Fix:** Replaced logout `IconButton` with `PopupMenuButton` profile menu in both:
+- `customer_home.dart`
+- `vendor_home.dart`
+
+The profile menu now shows:
+- User's email address
+- Role badge ("Customer" or "Vendor")
+- Logout option with red styling
+
+```dart
+PopupMenuButton<String>(
+  icon: const CircleAvatar(
+    radius: 16,
+    backgroundColor: AppColors.primary,
+    child: Icon(Icons.person, color: Colors.white, size: 20),
+  ),
+  itemBuilder: (context) => [
+    PopupMenuItem<String>(
+      enabled: false,
+      child: Column(
+        children: [
+          Text(email, style: TextStyle(fontWeight: FontWeight.bold)),
+          Container(
+            child: Text('Customer/Vendor'),  // Role badge
+          ),
+        ],
+      ),
+    ),
+    const PopupMenuDivider(),
+    PopupMenuItem<String>(
+      value: 'logout',
+      child: Row(children: [Icon(Icons.logout), Text('Logout')]),
+    ),
+  ],
+)
 ```
 
 ---

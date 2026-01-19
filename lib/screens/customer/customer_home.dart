@@ -38,12 +38,69 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         title: Text(_title),
         actions: [
           if (isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await ref.read(authServiceProvider).signOut();
-                if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
+            PopupMenuButton<String>(
+              icon: const CircleAvatar(
+                radius: 16,
+                backgroundColor: Color(0xFFFF6B35),
+                child: Icon(Icons.person, color: Colors.white, size: 20),
+              ),
+              offset: const Offset(0, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        authState.valueOrNull?.email ?? 'User',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6B35).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Customer',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFFF6B35),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.red, size: 20),
+                      SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) async {
+                if (value == 'logout') {
+                  await ref.read(authServiceProvider).signOut();
+                  if (context.mounted) {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  }
                 }
               },
             )
@@ -54,6 +111,7 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
               },
               child: const Text('Login'),
             ),
+          const SizedBox(width: 8),
         ],
       ),
       body: IndexedStack(

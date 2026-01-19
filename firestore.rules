@@ -76,6 +76,25 @@ service cloud.firestore {
       }
     }
 
+    // ============ FAVORITES ============
+    // Users can manage their own favorites
+    match /favorites/{favoriteId} {
+      // Users can read their own favorites
+      allow read: if isAuthenticated() &&
+        request.auth.uid == resource.data.customerId;
+
+      // Users can create favorites for themselves
+      allow create: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.customerId;
+
+      // Users can delete their own favorites
+      allow delete: if isAuthenticated() &&
+        request.auth.uid == resource.data.customerId;
+
+      // No updates needed - favorites are either added or removed
+      allow update: if false;
+    }
+
     // ============ ORDERS ============
     // Orders: vendor and customer can read, authenticated users can create
     match /orders/{orderId} {

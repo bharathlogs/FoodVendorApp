@@ -213,6 +213,7 @@ class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStat
           ),
           itemBuilder: (context) {
             final themeNotifier = ref.read(themeProvider.notifier);
+            final biometricState = ref.watch(biometricProvider);
             return [
               PopupMenuItem<String>(
                 enabled: false,
@@ -268,6 +269,29 @@ class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStat
                   ],
                 ),
               ),
+              PopupMenuItem<String>(
+                value: 'biometric',
+                child: Row(
+                  children: [
+                    Icon(
+                      biometricState.isEnabled
+                          ? Icons.fingerprint
+                          : Icons.fingerprint_outlined,
+                      color: biometricState.isEnabled
+                          ? AppColors.primary
+                          : Theme.of(context).iconTheme.color,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Biometric: ${biometricState.isEnabled ? 'On' : 'Off'}',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'logout',
@@ -284,10 +308,50 @@ class _VendorHomeState extends ConsumerState<VendorHome> with TickerProviderStat
           onSelected: (value) async {
             if (value == 'theme') {
               await ref.read(themeProvider.notifier).toggleTheme();
+            } else if (value == 'biometric') {
+              final biometricService = ref.read(biometricServiceProvider);
+              final isAvailable = await biometricService.isBiometricAvailable();
+
+              if (!isAvailable) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Biometric authentication is not available on this device'),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              final biometricNotifier = ref.read(biometricProvider.notifier);
+              final currentState = ref.read(biometricProvider);
+
+              if (currentState.isEnabled) {
+                await biometricNotifier.setBiometricEnabled(false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Biometric authentication disabled')),
+                  );
+                }
+              } else {
+                final authenticated = await biometricService.authenticate(
+                  reason: 'Authenticate to enable biometric login',
+                );
+                if (authenticated) {
+                  await biometricNotifier.setBiometricEnabled(true);
+                  await biometricNotifier.storeCredential();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Biometric authentication enabled')),
+                    );
+                  }
+                }
+              }
             } else if (value == 'logout') {
               if (_locationManager.isActive) {
                 await _locationManager.stopBroadcasting();
               }
+              await ref.read(biometricProvider.notifier).clearCredential();
               await _authService.signOut();
               if (mounted) {
                 Navigator.pushReplacementNamed(context, '/login');

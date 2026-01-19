@@ -4,6 +4,8 @@ import '../models/vendor_profile.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart' as models;
 import '../models/favorite.dart';
+import '../models/review.dart';
+import '../utils/geohash_utils.dart';
 
 /// Result of a paginated query
 class PaginatedResult<T> {
@@ -222,15 +224,174 @@ class DatabaseService {
     );
   }
 
-  // Update vendor location (for Phase 2)
+  // ============ GEOHASH-BASED QUERIES ============
+
+  /// Get active vendors near a location using geohash-based queries
+  /// This is more efficient than loading all vendors for large datasets
+  Stream<List<VendorProfile>> getVendorsNearLocation(
+    double latitude,
+    double longitude, {
+    int queryPrecision = 5, // ~5km radius
+  }) {
+    // Get geohash prefixes for the area (center + 8 neighbors)
+    final prefixes = GeohashUtils.getQueryPrefixes(
+      latitude,
+      longitude,
+      queryPrecision: queryPrecision,
+    );
+
+    // Query for vendors matching any of the geohash prefixes
+    // We use the center geohash for the primary query
+    final centerHash = prefixes.first;
+
+    return _firestore
+        .collection('vendor_profiles')
+        .where('isActive', isEqualTo: true)
+        .where('geohash', isGreaterThanOrEqualTo: centerHash)
+        .where('geohash', isLessThan: '${centerHash}~')
+        .limit(maxVendorsOnMap)
+        .snapshots()
+        .map((snapshot) {
+      final vendors = snapshot.docs
+          .map((doc) => VendorProfile.fromFirestore(doc))
+          .toList();
+
+      // Sort by distance from the query point
+      vendors.sort((a, b) {
+        if (a.location == null) return 1;
+        if (b.location == null) return -1;
+
+        final distA = GeohashUtils.calculateDistance(
+          latitude,
+          longitude,
+          a.location!.latitude,
+          a.location!.longitude,
+        );
+        final distB = GeohashUtils.calculateDistance(
+          latitude,
+          longitude,
+          b.location!.latitude,
+          b.location!.longitude,
+        );
+        return distA.compareTo(distB);
+      });
+
+      return vendors;
+    });
+  }
+
+  /// Get vendors near a location with expanded search (queries multiple geohash cells)
+  /// Use this for more comprehensive nearby searches
+  Future<List<VendorProfile>> getVendorsNearLocationExpanded(
+    double latitude,
+    double longitude, {
+    int queryPrecision = 5,
+    double maxDistanceKm = 10.0,
+  }) async {
+    final prefixes = GeohashUtils.getQueryPrefixes(
+      latitude,
+      longitude,
+      queryPrecision: queryPrecision,
+    );
+
+    final allVendors = <VendorProfile>[];
+    final seenIds = <String>{};
+
+    // Query each geohash prefix
+    for (final prefix in prefixes) {
+      final snapshot = await _firestore
+          .collection('vendor_profiles')
+          .where('isActive', isEqualTo: true)
+          .where('geohash', isGreaterThanOrEqualTo: prefix)
+          .where('geohash', isLessThan: '${prefix}~')
+          .limit(maxVendorsOnMap ~/ prefixes.length + 1)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        if (!seenIds.contains(doc.id)) {
+          seenIds.add(doc.id);
+          allVendors.add(VendorProfile.fromFirestore(doc));
+        }
+      }
+    }
+
+    // Filter by actual distance and sort
+    final filtered = allVendors.where((vendor) {
+      if (vendor.location == null) return false;
+      final distance = GeohashUtils.calculateDistance(
+        latitude,
+        longitude,
+        vendor.location!.latitude,
+        vendor.location!.longitude,
+      );
+      return distance <= maxDistanceKm;
+    }).toList();
+
+    // Sort by distance
+    filtered.sort((a, b) {
+      final distA = GeohashUtils.calculateDistance(
+        latitude,
+        longitude,
+        a.location!.latitude,
+        a.location!.longitude,
+      );
+      final distB = GeohashUtils.calculateDistance(
+        latitude,
+        longitude,
+        b.location!.latitude,
+        b.location!.longitude,
+      );
+      return distA.compareTo(distB);
+    });
+
+    return filtered.take(maxVendorsOnMap).toList();
+  }
+
+  /// Backfill geohash for existing vendors that have locations but no geohash
+  /// Call this once during migration
+  Future<int> backfillGeohashes() async {
+    final snapshot = await _firestore
+        .collection('vendor_profiles')
+        .where('geohash', isNull: true)
+        .get();
+
+    int updated = 0;
+    final batch = _firestore.batch();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final location = data['location'] as GeoPoint?;
+
+      if (location != null) {
+        final geohash = GeohashUtils.encode(
+          location.latitude,
+          location.longitude,
+        );
+        batch.update(doc.reference, {'geohash': geohash});
+        updated++;
+      }
+    }
+
+    if (updated > 0) {
+      await batch.commit();
+    }
+
+    return updated;
+  }
+
+  // Update vendor location (for Phase 2) with geohash
   Future<void> updateVendorLocation(
     String vendorId,
     double latitude,
     double longitude,
   ) async {
+    // Compute geohash for efficient proximity queries
+    final geohash = GeohashUtils.encode(latitude, longitude);
+
     await _firestore.collection('vendor_profiles').doc(vendorId).update({
       'location': GeoPoint(latitude, longitude),
       'locationUpdatedAt': FieldValue.serverTimestamp(),
+      'geohash': geohash,
     });
   }
 
@@ -428,6 +589,140 @@ class DatabaseService {
       }
 
       return vendors;
+    });
+  }
+
+  // ============ REVIEW OPERATIONS ============
+
+  /// Add a review for a vendor (one review per customer per vendor)
+  Future<String> addReview(String vendorId, Review review) async {
+    // Check if customer already reviewed this vendor
+    final existing = await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .where('customerId', isEqualTo: review.customerId)
+        .limit(1)
+        .get();
+
+    if (existing.docs.isNotEmpty) {
+      throw Exception('You have already reviewed this vendor');
+    }
+
+    final docRef = await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .add(review.toFirestore());
+
+    // Update vendor's average rating
+    await _updateVendorRating(vendorId);
+
+    return docRef.id;
+  }
+
+  /// Update an existing review
+  Future<void> updateReview(
+    String vendorId,
+    String reviewId,
+    Review review,
+  ) async {
+    await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .doc(reviewId)
+        .update(review.toFirestore());
+
+    // Update vendor's average rating
+    await _updateVendorRating(vendorId);
+  }
+
+  /// Delete a review
+  Future<void> deleteReview(String vendorId, String reviewId) async {
+    await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .doc(reviewId)
+        .delete();
+
+    // Update vendor's average rating
+    await _updateVendorRating(vendorId);
+  }
+
+  /// Get stream of reviews for a vendor (paginated, newest first)
+  Stream<List<Review>> getVendorReviewsStream(String vendorId) {
+    return _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Review.fromFirestore(doc)).toList());
+  }
+
+  /// Get a specific user's review for a vendor (if exists)
+  Future<Review?> getUserReviewForVendor(
+    String vendorId,
+    String customerId,
+  ) async {
+    final snapshot = await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .where('customerId', isEqualTo: customerId)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+    return Review.fromFirestore(snapshot.docs.first);
+  }
+
+  /// Stream a specific user's review for a vendor
+  Stream<Review?> getUserReviewForVendorStream(
+    String vendorId,
+    String customerId,
+  ) {
+    return _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .where('customerId', isEqualTo: customerId)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return null;
+      return Review.fromFirestore(snapshot.docs.first);
+    });
+  }
+
+  /// Recalculate and update vendor's average rating
+  Future<void> _updateVendorRating(String vendorId) async {
+    final snapshot = await _firestore
+        .collection('vendor_profiles')
+        .doc(vendorId)
+        .collection('reviews')
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      await _firestore.collection('vendor_profiles').doc(vendorId).update({
+        'averageRating': 0.0,
+        'totalRatings': 0,
+      });
+      return;
+    }
+
+    final reviews = snapshot.docs.map((doc) => Review.fromFirestore(doc));
+    final totalRatings = reviews.length;
+    final sumRatings = reviews.fold<int>(0, (sum, r) => sum + r.rating);
+    final averageRating = sumRatings / totalRatings;
+
+    await _firestore.collection('vendor_profiles').doc(vendorId).update({
+      'averageRating': averageRating,
+      'totalRatings': totalRatings,
     });
   }
 

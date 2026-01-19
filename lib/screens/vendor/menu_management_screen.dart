@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/app_button.dart';
@@ -6,6 +8,7 @@ import '../../widgets/common/shimmer_loading.dart';
 import '../../models/menu_item.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
+import '../../services/storage_service.dart';
 
 class MenuManagementScreen extends StatefulWidget {
   const MenuManagementScreen({super.key});
@@ -17,6 +20,7 @@ class MenuManagementScreen extends StatefulWidget {
 class _MenuManagementScreenState extends State<MenuManagementScreen> {
   final AuthService _authService = AuthService();
   final DatabaseService _databaseService = DatabaseService();
+  final StorageService _storageService = StorageService();
 
   static const int _maxMenuItems = 50;
 
@@ -35,9 +39,11 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _ModernMenuItemForm(
-        onSave: (name, price, description) async {
+        vendorId: _vendorId!,
+        storageService: _storageService,
+        onSave: (name, price, description, imageFile) async {
           Navigator.pop(context);
-          await _addMenuItem(name, price, description);
+          await _addMenuItem(name, price, description, imageFile);
         },
       ),
     );
@@ -51,14 +57,16 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _ModernMenuItemForm(
+        vendorId: _vendorId!,
+        storageService: _storageService,
         existingItem: item,
-        onSave: (name, price, description) async {
+        onSave: (name, price, description, imageFile) async {
           Navigator.pop(context);
-          await _updateMenuItem(item.itemId, name, price, description);
+          await _updateMenuItem(item.itemId, name, price, description, imageFile, item.imageUrl);
         },
         onDelete: () async {
           Navigator.pop(context);
-          await _deleteMenuItem(item.itemId, item.name);
+          await _deleteMenuItem(item.itemId, item.name, item.imageUrl);
         },
       ),
     );
@@ -96,10 +104,11 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
     );
   }
 
-  Future<void> _addMenuItem(String name, double price, String? description) async {
+  Future<void> _addMenuItem(String name, double price, String? description, File? imageFile) async {
     if (_vendorId == null) return;
 
     try {
+      // First create the menu item to get an ID
       final newItem = MenuItem(
         itemId: '',
         name: name,
@@ -109,7 +118,21 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
         createdAt: DateTime.now(),
       );
 
-      await _databaseService.addMenuItem(_vendorId!, newItem);
+      final itemId = await _databaseService.addMenuItem(_vendorId!, newItem);
+
+      // If image was selected, upload it and update the item
+      if (imageFile != null) {
+        final imageUrl = await _storageService.uploadMenuItemPhoto(
+          _vendorId!,
+          itemId,
+          imageFile,
+        );
+        if (imageUrl != null) {
+          await _databaseService.updateMenuItem(_vendorId!, itemId, {
+            'imageUrl': imageUrl,
+          });
+        }
+      }
 
       if (mounted) {
         _showSuccessSnackBar('Added "$name" to menu');
@@ -126,14 +149,28 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
     String name,
     double price,
     String? description,
+    File? newImageFile,
+    String? existingImageUrl,
   ) async {
     if (_vendorId == null) return;
 
     try {
+      String? imageUrl = existingImageUrl;
+
+      // If new image was selected, upload it
+      if (newImageFile != null) {
+        imageUrl = await _storageService.uploadMenuItemPhoto(
+          _vendorId!,
+          itemId,
+          newImageFile,
+        );
+      }
+
       await _databaseService.updateMenuItem(_vendorId!, itemId, {
         'name': name,
         'price': price,
         'description': description,
+        'imageUrl': imageUrl,
       });
 
       if (mounted) {
@@ -146,10 +183,15 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
     }
   }
 
-  Future<void> _deleteMenuItem(String itemId, String itemName) async {
+  Future<void> _deleteMenuItem(String itemId, String itemName, String? imageUrl) async {
     if (_vendorId == null) return;
 
     try {
+      // Delete image from storage if exists
+      if (imageUrl != null) {
+        await _storageService.deleteMenuItemPhoto(_vendorId!, itemId);
+      }
+
       await _databaseService.deleteMenuItem(_vendorId!, itemId);
 
       if (mounted) {
@@ -355,7 +397,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
       onTap: () => _showEditItemForm(item),
       child: Row(
         children: [
-          // Food Icon with availability indicator
+          // Food image or icon with availability indicator
           Stack(
             children: [
               Container(
@@ -367,13 +409,33 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                       : Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.fastfood,
-                  color: item.isAvailable
-                      ? AppColors.primary
-                      : Colors.grey,
-                  size: 28,
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: item.imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: item.imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Icon(
+                          Icons.fastfood,
+                          color: item.isAvailable
+                              ? AppColors.primary
+                              : Colors.grey,
+                          size: 28,
+                        ),
+                        errorWidget: (context, url, error) => Icon(
+                          Icons.fastfood,
+                          color: item.isAvailable
+                              ? AppColors.primary
+                              : Colors.grey,
+                          size: 28,
+                        ),
+                      )
+                    : Icon(
+                        Icons.fastfood,
+                        color: item.isAvailable
+                            ? AppColors.primary
+                            : Colors.grey,
+                        size: 28,
+                      ),
               ),
               Positioned(
                 right: 0,
@@ -448,11 +510,15 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
 
 // Modern Menu Item Form
 class _ModernMenuItemForm extends StatefulWidget {
+  final String vendorId;
+  final StorageService storageService;
   final MenuItem? existingItem;
-  final Function(String name, double price, String? description) onSave;
+  final Function(String name, double price, String? description, File? imageFile) onSave;
   final VoidCallback? onDelete;
 
   const _ModernMenuItemForm({
+    required this.vendorId,
+    required this.storageService,
     this.existingItem,
     required this.onSave,
     this.onDelete,
@@ -468,6 +534,7 @@ class _ModernMenuItemFormState extends State<_ModernMenuItemForm> {
   late TextEditingController _priceController;
   late TextEditingController _descriptionController;
   bool _isSaving = false;
+  File? _selectedImage;
 
   @override
   void initState() {
@@ -491,6 +558,15 @@ class _ModernMenuItemFormState extends State<_ModernMenuItemForm> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final image = await widget.storageService.pickImage(context);
+    if (image != null) {
+      setState(() {
+        _selectedImage = image;
+      });
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -504,17 +580,19 @@ class _ModernMenuItemFormState extends State<_ModernMenuItemForm> {
       name,
       price,
       description.isNotEmpty ? description : null,
+      _selectedImage,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existingItem != null;
+    final existingImageUrl = widget.existingItem?.imageUrl;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -544,6 +622,52 @@ class _ModernMenuItemFormState extends State<_ModernMenuItemForm> {
               Text(
                 isEditing ? 'Edit Item' : 'Add New Item',
                 style: AppTextStyles.h3,
+              ),
+              const SizedBox(height: 24),
+
+              // Image Picker
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _selectedImage != null
+                        ? Image.file(
+                            _selectedImage!,
+                            fit: BoxFit.cover,
+                          )
+                        : existingImageUrl != null
+                            ? CachedNetworkImage(
+                                imageUrl: existingImageUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    _buildImagePlaceholder(),
+                              )
+                            : _buildImagePlaceholder(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  'Tap to ${existingImageUrl != null || _selectedImage != null ? 'change' : 'add'} photo',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -655,6 +779,26 @@ class _ModernMenuItemFormState extends State<_ModernMenuItemForm> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate_outlined,
+          size: 40,
+          color: AppColors.primary,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Add Photo',
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.primary,
+          ),
+        ),
+      ],
     );
   }
 }

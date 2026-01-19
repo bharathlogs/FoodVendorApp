@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/shimmer_loading.dart';
+import '../../widgets/common/star_rating.dart';
+import '../../widgets/customer/review_form.dart';
+import '../../widgets/customer/review_list.dart';
 import '../../models/vendor_profile.dart';
 import '../../models/menu_item.dart';
+import '../../models/review.dart';
 import '../../services/database_service.dart';
 import '../../utils/distance_formatter.dart';
+import '../../providers/providers.dart';
+import '../../services/deep_link_service.dart';
 
-class VendorDetailScreen extends StatelessWidget {
+class VendorDetailScreen extends ConsumerStatefulWidget {
   final VendorProfile vendor;
   final double? distanceKm;
 
@@ -20,8 +27,23 @@ class VendorDetailScreen extends StatelessWidget {
   });
 
   @override
+  ConsumerState<VendorDetailScreen> createState() => _VendorDetailScreenState();
+}
+
+class _VendorDetailScreenState extends ConsumerState<VendorDetailScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  bool _showReviewForm = false;
+  Review? _editingReview;
+
+  @override
   Widget build(BuildContext context) {
-    final databaseService = DatabaseService();
+    final vendor = widget.vendor;
+    final distanceKm = widget.distanceKm;
+
+    // Watch reviews
+    final reviewsAsync = ref.watch(vendorReviewsProvider(vendor.vendorId));
+    final userReviewAsync = ref.watch(userReviewProvider(vendor.vendorId));
+    final currentUser = ref.watch(currentUserProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -103,10 +125,54 @@ class VendorDetailScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                StatusBadge(
-                                  status: vendor.isActive
-                                      ? StatusType.open
-                                      : StatusType.closed,
+                                Row(
+                                  children: [
+                                    StatusBadge(
+                                      status: vendor.isActive
+                                          ? StatusType.open
+                                          : StatusType.closed,
+                                    ),
+                                    if (vendor.totalRatings > 0) ...[
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.star_rounded,
+                                              size: 16,
+                                              color: AppColors.warning,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              vendor.averageRating.toStringAsFixed(1),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '(${vendor.totalRatings})',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.white.withValues(alpha: 0.8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
                             ),
@@ -129,6 +195,21 @@ class VendorDetailScreen extends StatelessWidget {
               ),
               onPressed: () => Navigator.pop(context),
             ),
+            actions: [
+              // Share button
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.share, color: Colors.white),
+                ),
+                onPressed: () => _shareVendor(),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
 
           // Content
@@ -228,7 +309,7 @@ class VendorDetailScreen extends StatelessWidget {
 
           // Menu Items
           StreamBuilder<List<MenuItem>>(
-            stream: databaseService.getMenuItemsStream(vendor.vendorId),
+            stream: _databaseService.getMenuItemsStream(vendor.vendorId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return SliverPadding(
@@ -266,6 +347,111 @@ class VendorDetailScreen extends StatelessWidget {
                 ),
               );
             },
+          ),
+
+          // Reviews Section
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.rate_review,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Reviews',
+                            style: AppTextStyles.h3,
+                          ),
+                          if (vendor.totalRatings > 0) ...[
+                            const SizedBox(width: 8),
+                            RatingBadge(
+                              rating: vendor.averageRating,
+                              totalRatings: vendor.totalRatings,
+                            ),
+                          ],
+                        ],
+                      ),
+                      // Add review button
+                      if (currentUser != null && !_showReviewForm)
+                        userReviewAsync.when(
+                          data: (existingReview) {
+                            if (existingReview != null) {
+                              return const SizedBox.shrink();
+                            }
+                            return TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _showReviewForm = true;
+                                  _editingReview = null;
+                                });
+                              },
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Write Review'),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Review Form
+                  if (_showReviewForm && currentUser != null)
+                    ReviewForm(
+                      existingReview: _editingReview,
+                      vendorId: vendor.vendorId,
+                      customerId: currentUser.uid,
+                      customerName: currentUser.displayName,
+                      onSubmit: (review) => _handleReviewSubmit(review),
+                      onCancel: () {
+                        setState(() {
+                          _showReviewForm = false;
+                          _editingReview = null;
+                        });
+                      },
+                      onDelete: _editingReview != null
+                          ? () => _handleReviewDelete(_editingReview!)
+                          : null,
+                    ),
+
+                  if (_showReviewForm) const SizedBox(height: 16),
+
+                  // Reviews List
+                  reviewsAsync.when(
+                    data: (reviews) => ReviewList(
+                      reviews: reviews,
+                      currentUserId: currentUser?.uid,
+                      onEditReview: (review) {
+                        setState(() {
+                          _showReviewForm = true;
+                          _editingReview = review;
+                        });
+                      },
+                    ),
+                    loading: () => const ReviewList(
+                      reviews: [],
+                      isLoading: true,
+                    ),
+                    error: (e, _) => Text(
+                      'Error loading reviews',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
 
           // Bottom Padding
@@ -368,6 +554,101 @@ class VendorDetailScreen extends StatelessWidget {
     );
   }
 
+  void _shareVendor() {
+    final vendor = widget.vendor;
+    DeepLinkService.shareVendorWithLocation(
+      vendorId: vendor.vendorId,
+      vendorName: vendor.businessName,
+      description: vendor.description.isNotEmpty ? vendor.description : null,
+      distanceKm: widget.distanceKm,
+    );
+  }
+
+  Future<void> _handleReviewSubmit(Review review) async {
+    final vendor = widget.vendor;
+    final reviewNotifier = ref.read(reviewNotifierProvider.notifier);
+    final isEditing = _editingReview != null;
+
+    bool success;
+    if (isEditing) {
+      success = await reviewNotifier.updateReview(
+        vendorId: vendor.vendorId,
+        reviewId: _editingReview!.reviewId,
+        review: review,
+      );
+    } else {
+      success = await reviewNotifier.submitReview(
+        vendorId: vendor.vendorId,
+        review: review,
+      );
+    }
+
+    if (success && mounted) {
+      setState(() {
+        _showReviewForm = false;
+        _editingReview = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isEditing
+              ? 'Review updated successfully'
+              : 'Review submitted successfully'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleReviewDelete(Review review) async {
+    final vendor = widget.vendor;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Review'),
+        content: const Text('Are you sure you want to delete your review?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final reviewNotifier = ref.read(reviewNotifierProvider.notifier);
+      final success = await reviewNotifier.deleteReview(
+        vendorId: vendor.vendorId,
+        reviewId: review.reviewId,
+      );
+
+      if (success && mounted) {
+        setState(() {
+          _showReviewForm = false;
+          _editingReview = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Review deleted'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildEmptyMenu() {
     return Center(
       child: Column(
@@ -454,7 +735,7 @@ class _MenuItemCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Food Icon
+          // Food Image or Icon
           Container(
             width: 70,
             height: 70,
@@ -462,11 +743,27 @@ class _MenuItemCard extends StatelessWidget {
               color: AppColors.primaryLight,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              Icons.fastfood,
-              color: AppColors.primary,
-              size: 32,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: item.imageUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: item.imageUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Icon(
+                      Icons.fastfood,
+                      color: AppColors.primary,
+                      size: 32,
+                    ),
+                    errorWidget: (context, url, error) => Icon(
+                      Icons.fastfood,
+                      color: AppColors.primary,
+                      size: 32,
+                    ),
+                  )
+                : Icon(
+                    Icons.fastfood,
+                    color: AppColors.primary,
+                    size: 32,
+                  ),
           ),
           const SizedBox(width: 16),
 

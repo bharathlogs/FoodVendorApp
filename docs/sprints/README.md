@@ -12,6 +12,7 @@ After completing the initial 5 development phases, enhancement sprints were impl
 | Sprint 2 | Security & UX | Complete |
 | Sprint 3 | Pagination, FCM & Testing | Complete |
 | Sprint 4 | Riverpod, Favorites & Offline | Complete |
+| Sprint 5 | Feature Enhancements | Complete |
 
 ---
 
@@ -68,6 +69,21 @@ After completing the initial 5 development phases, enhancement sprints were impl
 
 ---
 
+## Sprint 5: Feature Enhancements
+
+**Goal:** Key feature additions for improved UX and functionality
+
+**Deliverables:**
+- Biometric authentication (fingerprint/Face ID)
+- Menu item images (upload, display)
+- Reviews & ratings system
+- Geohashing for proximity queries
+- Deep link sharing
+
+[View Details](./SPRINT5_ENHANCEMENTS.md)
+
+---
+
 ## Cumulative Changes
 
 ### Dependencies Added
@@ -88,6 +104,12 @@ fake_cloud_firestore: ^3.1.0
 flutter_riverpod: ^2.5.1
 riverpod_annotation: ^2.3.5
 riverpod_generator: ^2.4.0
+
+# Sprint 5
+local_auth: ^2.3.0
+dart_geohash: ^2.0.0
+app_links: ^6.3.2
+share_plus: ^10.1.4
 ```
 
 ### New Files Created
@@ -98,6 +120,7 @@ riverpod_generator: ^2.4.0
 | 2 | `theme_service.dart`, `firestore.rules` |
 | 3 | `notification_service.dart`, 4 test files |
 | 4 | `providers.dart`, `favorite.dart`, `favorites_screen.dart` |
+| 5 | `biometric_service.dart`, `biometric_prompt_screen.dart`, `review.dart`, `star_rating.dart`, `review_form.dart`, `review_list.dart`, `geohash_utils.dart`, `deep_link_service.dart` |
 
 ### Test Coverage
 
@@ -114,6 +137,6 @@ riverpod_generator: ^2.4.0
 
 ## Future Sprint Ideas
 
-- **Sprint 5:** Order system, customer-vendor chat
-- **Sprint 6:** Rating/review system, vendor analytics
-- **Sprint 7:** Payment integration, order history
+- **Sprint 6:** Order system, customer-vendor chat
+- **Sprint 7:** Vendor analytics dashboard
+- **Sprint 8:** Payment integration, order history

@@ -88,6 +88,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       );
 
       if (user != null && mounted) {
+        // Store credential for biometric auth and mark as verified for this session
+        final biometricNotifier = ref.read(biometricProvider.notifier);
+        final biometricState = ref.read(biometricProvider);
+        if (biometricState.isEnabled) {
+          await biometricNotifier.storeCredential();
+        }
+        // Mark as verified since user just logged in with password
+        biometricNotifier.markVerified();
+
+        if (!mounted) return;
+
         if (user.role == UserRole.vendor) {
           Navigator.pushReplacementNamed(context, '/vendor-home');
         } else {

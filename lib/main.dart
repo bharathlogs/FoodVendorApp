@@ -16,11 +16,15 @@ import 'providers/providers.dart';
 import 'models/user_model.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import 'screens/auth/biometric_prompt_screen.dart';
 import 'screens/vendor/vendor_home.dart';
 import 'screens/customer/customer_home.dart';
 import 'screens/splash/splash_screen.dart';
 import 'core/navigation/app_page_route.dart';
 import 'core/navigation/app_transitions.dart';
+import 'services/deep_link_service.dart';
+import 'services/database_service.dart';
+import 'screens/customer/vendor_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,12 +69,79 @@ void main() async {
   );
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  bool _deepLinksInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    if (_deepLinksInitialized) return;
+    _deepLinksInitialized = true;
+
+    final deepLinkService = ref.read(deepLinkServiceProvider);
+
+    // Initialize and handle initial link
+    final initialLink = await deepLinkService.initialize();
+    if (initialLink != null) {
+      ref.read(pendingDeepLinkProvider.notifier).state = initialLink;
+    }
+
+    // Listen for incoming links
+    deepLinkService.linkStream.listen((linkData) {
+      _handleDeepLink(linkData);
+    });
+  }
+
+  void _handleDeepLink(DeepLinkData linkData) {
+    switch (linkData.type) {
+      case DeepLinkType.vendor:
+        _navigateToVendor(linkData.id);
+        break;
+    }
+  }
+
+  Future<void> _navigateToVendor(String vendorId) async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    // Fetch vendor data
+    final dbService = DatabaseService();
+    final vendor = await dbService.getVendorProfile(vendorId);
+
+    if (vendor != null && mounted) {
+      navigator.push(
+        AppPageRoute(
+          page: VendorDetailScreen(vendor: vendor),
+          transitionType: AppTransitionType.slideRight,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
+
+    // Listen for pending deep links (set during splash/auth)
+    ref.listen<DeepLinkData?>(pendingDeepLinkProvider, (previous, next) {
+      if (next != null) {
+        // Clear the pending link and handle it
+        ref.read(pendingDeepLinkProvider.notifier).state = null;
+        _handleDeepLink(next);
+      }
+    });
 
     return MaterialApp(
       title: 'Food Finder',
@@ -78,6 +149,7 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      navigatorKey: _navigatorKey,
       navigatorObservers: [AnalyticsService().observer],
       home: const WithForegroundTask(
         child: SplashWrapper(),
@@ -147,12 +219,32 @@ class _SplashWrapperState extends State<SplashWrapper> {
   }
 }
 
-class AuthWrapper extends ConsumerWidget {
+class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends ConsumerState<AuthWrapper> {
+  bool _bypassBiometric = false;
+
+  void _onBiometricSuccess() {
+    ref.read(biometricProvider.notifier).markVerified();
+  }
+
+  void _onUsePassword() {
+    setState(() {
+      _bypassBiometric = true;
+    });
+    // Sign out to force password login
+    ref.read(authServiceProvider).signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
+    final biometricState = ref.watch(biometricProvider);
 
     return authState.when(
       loading: () => const Scaffold(
@@ -161,6 +253,14 @@ class AuthWrapper extends ConsumerWidget {
       error: (_, __) => const LoginScreen(),
       data: (user) {
         if (user == null) {
+          // Reset bypass when logged out
+          if (_bypassBiometric) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _bypassBiometric = false;
+              });
+            });
+          }
           return const LoginScreen();
         }
 
@@ -177,6 +277,17 @@ class AuthWrapper extends ConsumerWidget {
             final userData = userSnapshot.data;
             if (userData == null) {
               return const LoginScreen();
+            }
+
+            // Check if biometric gate should be shown
+            if (!_bypassBiometric &&
+                biometricState.isEnabled &&
+                biometricState.hasCredential &&
+                !biometricState.isVerified) {
+              return BiometricPromptScreen(
+                onSuccess: _onBiometricSuccess,
+                onUsePassword: _onUsePassword,
+              );
             }
 
             if (userData.role == UserRole.vendor) {

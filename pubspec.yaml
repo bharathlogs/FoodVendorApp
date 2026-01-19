@@ -62,6 +62,16 @@ dependencies:
   flutter_riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
 
+  # Biometric Authentication
+  local_auth: ^2.3.0
+
+  # Geohashing
+  dart_geohash: ^2.0.0
+
+  # Deep Linking & Sharing
+  app_links: ^6.3.2
+  share_plus: ^10.1.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

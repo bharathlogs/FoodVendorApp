@@ -9,6 +9,9 @@ class VendorProfile {
   final GeoPoint? location;
   final DateTime? locationUpdatedAt;
   final String? profileImageUrl;
+  final double averageRating;
+  final int totalRatings;
+  final String? geohash;
 
   VendorProfile({
     required this.vendorId,
@@ -19,6 +22,9 @@ class VendorProfile {
     this.location,
     this.locationUpdatedAt,
     this.profileImageUrl,
+    this.averageRating = 0.0,
+    this.totalRatings = 0,
+    this.geohash,
   });
 
   factory VendorProfile.fromFirestore(DocumentSnapshot doc) {
@@ -34,6 +40,9 @@ class VendorProfile {
           ? (data['locationUpdatedAt'] as Timestamp).toDate()
           : null,
       profileImageUrl: data['profileImageUrl'],
+      averageRating: (data['averageRating'] ?? 0.0).toDouble(),
+      totalRatings: data['totalRatings'] ?? 0,
+      geohash: data['geohash'],
     );
   }
 
@@ -48,6 +57,9 @@ class VendorProfile {
           ? Timestamp.fromDate(locationUpdatedAt!)
           : null,
       'profileImageUrl': profileImageUrl,
+      'averageRating': averageRating,
+      'totalRatings': totalRatings,
+      'geohash': geohash,
     };
   }
 }

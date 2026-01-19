@@ -115,4 +115,58 @@ class StorageService {
         )
         .snapshotEvents;
   }
+
+  /// Upload menu item photo
+  /// Returns the download URL on success, null on failure
+  Future<String?> uploadMenuItemPhoto(
+    String vendorId,
+    String itemId,
+    File imageFile,
+  ) async {
+    try {
+      final ref = _storage
+          .ref()
+          .child('vendor_photos/$vendorId/menu_items/$itemId.jpg');
+
+      final uploadTask = ref.putFile(
+        imageFile,
+        SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'uploadedAt': DateTime.now().toIso8601String(),
+          },
+        ),
+      );
+
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } on FirebaseException catch (e) {
+      if (kDebugMode) debugPrint('Firebase Storage error: ${e.code} - ${e.message}');
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error uploading menu item image: $e');
+      return null;
+    }
+  }
+
+  /// Delete menu item photo
+  Future<bool> deleteMenuItemPhoto(String vendorId, String itemId) async {
+    try {
+      final ref = _storage
+          .ref()
+          .child('vendor_photos/$vendorId/menu_items/$itemId.jpg');
+      await ref.delete();
+      return true;
+    } on FirebaseException catch (e) {
+      if (e.code == 'object-not-found') {
+        return true;
+      }
+      if (kDebugMode) debugPrint('Firebase Storage error: ${e.code} - ${e.message}');
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error deleting menu item image: $e');
+      return false;
+    }
+  }
 }

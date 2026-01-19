@@ -7,7 +7,7 @@ A mobile app for discovering nearby food vendors in real-time.
 ### For Vendors
 - Create account and manage profile
 - Set cuisine types (Indian, Chinese, Mexican, etc.)
-- Manage menu items (add, edit, delete, toggle availability)
+- Manage menu items with images (add, edit, delete, toggle availability)
 - Go online/offline with live location sharing
 - Background location updates with battery optimization
 - Offline queue for location updates when network unavailable
@@ -15,18 +15,29 @@ A mobile app for discovering nearby food vendors in real-time.
 ### For Customers
 - Browse vendors on interactive map (no login required)
 - Filter by cuisine type
-- View vendor menus and prices
+- View vendor menus with images and prices
 - See distance and estimated walking time
 - Real-time vendor location updates
+- Rate and review vendors (1-5 stars + comments)
+- Save favorite vendors
+- Share vendor profiles via deep links
+
+### Security & UX
+- Biometric authentication (fingerprint/Face ID)
+- Dark mode support
+- Offline data persistence
 
 ## Tech Stack
 
 - **Framework**: Flutter 3.10+
-- **Authentication**: Firebase Auth (Email/Password)
-- **Database**: Cloud Firestore (real-time sync)
-- **Storage**: Firebase Storage (vendor photos)
+- **State Management**: Riverpod
+- **Authentication**: Firebase Auth (Email/Password) + Biometric (local_auth)
+- **Database**: Cloud Firestore (real-time sync, offline persistence)
+- **Storage**: Firebase Storage (vendor/menu photos)
 - **Maps**: flutter_map + OpenStreetMap (free, no API key)
-- **Location**: Geolocator + Flutter Foreground Task
+- **Location**: Geolocator + Flutter Foreground Task + Geohashing
+- **Analytics**: Firebase Analytics + Crashlytics
+- **Deep Links**: app_links + share_plus
 
 ## Setup
 
@@ -92,19 +103,30 @@ lib/
 │   ├── user_model.dart       # User authentication model
 │   ├── vendor_profile.dart   # Vendor profile model
 │   ├── menu_item.dart        # Menu item model
-│   ├── location_data.dart    # Location data model
-│   └── order.dart            # Order model (future)
+│   ├── review.dart           # Review model
+│   ├── favorite.dart         # Favorite model
+│   └── location_data.dart    # Location data model
 ├── screens/                  # UI screens
-│   ├── auth/                 # Login, Signup
+│   ├── auth/                 # Login, Signup, Biometric prompt
 │   ├── vendor/               # Vendor dashboard, menu management
-│   └── customer/             # Map view, vendor details
+│   └── customer/             # Map view, vendor details, favorites
 ├── services/                 # Business logic
 │   ├── auth_service.dart     # Firebase Auth wrapper
 │   ├── database_service.dart # Firestore operations
+│   ├── biometric_service.dart # Biometric authentication
+│   ├── deep_link_service.dart # Deep link handling
+│   ├── storage_service.dart  # Firebase Storage operations
 │   ├── location_manager.dart # Location broadcasting
 │   └── permission_service.dart # Permission handling
+├── providers/                # Riverpod state management
+│   └── providers.dart        # All app providers
 ├── widgets/                  # Reusable components
+│   ├── common/               # Shared widgets (star_rating, etc.)
+│   ├── customer/             # Customer-specific (review_form, etc.)
+│   └── vendor/               # Vendor-specific widgets
 └── utils/                    # Helpers and constants
+    ├── geohash_utils.dart    # Geohash encoding/decoding
+    └── validators.dart       # Input validation
 ```
 
 ## Firebase Collections
@@ -113,24 +135,45 @@ lib/
 users/
   {userId}/
     - email: string
+    - displayName: string
     - role: "vendor" | "customer"
     - createdAt: timestamp
 
-vendorProfiles/
+vendor_profiles/
   {vendorId}/
     - businessName: string
-    - cuisineTypes: string[]
+    - description: string
+    - cuisineTags: string[]
     - isActive: boolean
-    - latitude: number
-    - longitude: number
-    - lastUpdated: timestamp
+    - location: GeoPoint
+    - locationUpdatedAt: timestamp
+    - geohash: string
+    - averageRating: number
+    - totalRatings: number
+    - profileImageUrl: string
 
-menuItems/
-  {menuItemId}/
+    menu_items/ (subcollection)
+      {itemId}/
+        - name: string
+        - description: string
+        - price: number
+        - isAvailable: boolean
+        - imageUrl: string
+        - createdAt: timestamp
+
+    reviews/ (subcollection)
+      {reviewId}/
+        - customerId: string
+        - customerName: string
+        - rating: number (1-5)
+        - comment: string
+        - createdAt: timestamp
+
+favorites/
+  {favoriteId}/
+    - customerId: string
     - vendorId: string
-    - name: string
-    - price: number
-    - isAvailable: boolean
+    - createdAt: timestamp
 ```
 
 ## Testing
@@ -146,8 +189,7 @@ See `docs/end-to-end-test-script.md` for manual test scenarios.
 
 - Android only (iOS support can be added with minor changes)
 - No payment integration
-- No push notifications
-- No image upload for menu items (vendor photo only)
+- No order system (view only)
 - Maximum 50 menu items per vendor
 - 10-minute location timeout (auto-offline)
 - 50 vendor limit per map query

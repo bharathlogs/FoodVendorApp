@@ -50,6 +50,7 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
               ),
               itemBuilder: (context) {
                 final themeNotifier = ref.read(themeProvider.notifier);
+                final biometricState = ref.watch(biometricProvider);
                 return [
                   PopupMenuItem<String>(
                     enabled: false,
@@ -105,6 +106,29 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
                       ],
                     ),
                   ),
+                  PopupMenuItem<String>(
+                    value: 'biometric',
+                    child: Row(
+                      children: [
+                        Icon(
+                          biometricState.isEnabled
+                              ? Icons.fingerprint
+                              : Icons.fingerprint_outlined,
+                          color: biometricState.isEnabled
+                              ? const Color(0xFFFF6B35)
+                              : Theme.of(context).iconTheme.color,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Biometric: ${biometricState.isEnabled ? 'On' : 'Off'}',
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const PopupMenuDivider(),
                   PopupMenuItem<String>(
                     value: 'logout',
@@ -121,7 +145,50 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
               onSelected: (value) async {
                 if (value == 'theme') {
                   await ref.read(themeProvider.notifier).toggleTheme();
+                } else if (value == 'biometric') {
+                  final biometricService = ref.read(biometricServiceProvider);
+                  final isAvailable = await biometricService.isBiometricAvailable();
+
+                  if (!isAvailable) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Biometric authentication is not available on this device'),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  final biometricNotifier = ref.read(biometricProvider.notifier);
+                  final currentState = ref.read(biometricProvider);
+
+                  if (currentState.isEnabled) {
+                    // Disable biometric
+                    await biometricNotifier.setBiometricEnabled(false);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Biometric authentication disabled')),
+                      );
+                    }
+                  } else {
+                    // Enable biometric - verify first
+                    final authenticated = await biometricService.authenticate(
+                      reason: 'Authenticate to enable biometric login',
+                    );
+                    if (authenticated) {
+                      await biometricNotifier.setBiometricEnabled(true);
+                      await biometricNotifier.storeCredential();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Biometric authentication enabled')),
+                        );
+                      }
+                    }
+                  }
                 } else if (value == 'logout') {
+                  // Clear biometric credential on logout
+                  await ref.read(biometricProvider.notifier).clearCredential();
                   await ref.read(authServiceProvider).signOut();
                   if (context.mounted) {
                     Navigator.pushReplacementNamed(context, '/login');
